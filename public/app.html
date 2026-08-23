@@ -64,6 +64,7 @@
         <button class="step" data-panel="calendar"><b>2</b><span>打卡日历<small>课程、单次与重复任务</small></span></button>
         <button class="step" data-panel="observations"><b>3</b><span>签到日志<small>成功、失败与无任务</small></span></button>
         <button class="step" data-panel="ai"><b>4</b><span>AI 助手<small>聊课表，也能带附件</small></span></button>
+        <button class="step" data-panel="faq"><b>?</b><span>FAQ 与反馈<small>常见问题与意见提交</small></span></button>
         <button class="step admin-only" data-panel="admin" hidden><b>A</b><span>Admin<small>用户状态与脱敏运维</small></span></button>
       </aside>
 
@@ -207,6 +208,31 @@
           </div>
           <p class="panel-help">可查看用户状态、轮询配置、日志、AI 用量与信誉。密码、Cookie 和 PushPlus Token 永不展示；恢复密钥仅在单独点击并留下审计记录后显示。</p>
           <div class="admin-grid"><div class="admin-users" id="admin-users"><p>正在读取用户……</p></div><div class="admin-detail" id="admin-detail"><p>选择一位用户查看脱敏详情。</p></div></div>
+          <section class="admin-feedback-section">
+            <h3>用户反馈</h3>
+            <p>最近 100 条反馈会显示在这里，方便集中查看问题和建议。</p>
+            <div class="feedback-list" id="admin-feedback"><p>正在读取反馈……</p></div>
+          </section>
+        </section>
+
+        <section class="panel" id="panel-faq">
+          <div class="panel-title">
+            <div><span>需要帮忙？</span><h2>FAQ 与反馈</h2></div>
+            <span class="save-state">登录后可提交</span>
+          </div>
+          <div class="faq-list">
+            <details open><summary>为什么扫码后还需要等一会儿？</summary><p>手机确认登录后，网站需要向班级魔方确认登录状态、保存 Cookie 并读取班级信息。网络较慢时可能需要数秒；超过两分钟仍未完成时，请重新生成二维码。</p></details>
+            <details><summary>关闭浏览器后还会自动签到吗？</summary><p>启动签到并保存配置后，轮询由云端继续执行，不依赖浏览器或电脑保持打开。Cookie 失效、网络异常或班级魔方页面调整时，签到仍可能失败，请查看签到日志和 PushPlus 通知。</p></details>
+            <details><summary>课程日历和普通轮询有什么区别？</summary><p>普通轮询会在你设置的每天时间段内使用默认坐标检查。日历任务会在任务时间前后使用该任务绑定的坐标优先检查，两种方式可以同时使用。</p></details>
+            <details><summary>如何保护账号信息？</summary><p>Cookie 和 PushPlus Token 会加密保存，普通用户和 Admin 页面均不会展示其原文。请不要把恢复密钥、密码或 Cookie 发给其他人。</p></details>
+          </div>
+          <form class="feedback-form" id="feedback-form">
+            <div><span>提交反馈</span><h3>遇到问题，或者有新想法？</h3><p>反馈会连同你的用户名显示给管理员，便于定位问题。请不要填写密码、Cookie、Token 或恢复密钥。</p></div>
+            <label>分类<select id="feedback-category"><option value="bug">功能异常</option><option value="suggestion">功能建议</option><option value="question">使用问题</option><option value="other">其他</option></select></label>
+            <label>标题<input id="feedback-subject" maxlength="120" required placeholder="例如：扫码后一直没有获得 Cookie"></label>
+            <label>详细说明<textarea id="feedback-content" maxlength="2000" required placeholder="请说明操作步骤、出现的提示，以及大概发生时间。"></textarea></label>
+            <button class="button primary" type="submit">提交反馈</button>
+          </form>
         </section>
       </section>
     </main>

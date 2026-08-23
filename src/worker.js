@@ -10,6 +10,7 @@ import {
 } from "./native-auth.js";
 import { inspectClassTasks, recentObservations } from "./read-only.js";
 import { executeAttendanceOnce, recentAttendanceLogs, testPushplus } from "./attendance.js";
+import { adminFeedback, submitFeedback } from "./feedback.js";
 import {
   adminUserDetail, adminUsers, deleteAdminUser, revealRecoveryCode, setAdminUserStatus,
 } from "./admin.js";
@@ -291,6 +292,9 @@ async function handleAdmin(request, env, url) {
   if (url.pathname === "/api/admin/users" && request.method === "GET") {
     return json({ ok: true, users: await adminUsers(env) });
   }
+  if (url.pathname === "/api/admin/feedback" && request.method === "GET") {
+    return json({ ok: true, feedback: await adminFeedback(env) });
+  }
   const recoveryMatch = /^\/api\/admin\/users\/([0-9a-f-]{36})\/recovery$/i.exec(url.pathname);
   if (recoveryMatch) {
     if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
@@ -330,6 +334,17 @@ async function handleAdmin(request, env, url) {
     return json({ ok: false, error: "Method not allowed" }, 405);
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : "Admin operation failed" }, 400);
+  }
+}
+
+async function handleFeedback(request, env) {
+  const auth = await authenticatedAccount(request, env);
+  if (auth.response) return auth.response;
+  if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
+  try {
+    return json({ ok: true, ...(await submitFeedback(env, auth.account.id, await requestJson(request))) }, 201);
+  } catch (error) {
+    return json({ ok: false, error: error instanceof Error ? error.message : "无法提交反馈" }, 400);
   }
 }
 
@@ -509,6 +524,8 @@ export default {
       if (request.method !== "GET") return json({ ok: false, error: "Method not allowed" }, 405);
       return json({ ok: true, logs: await recentAttendanceLogs(env, auth.account.id) });
     }
+
+    if (url.pathname === "/api/feedback") return handleFeedback(request, env);
 
     if (url.pathname.startsWith("/api/admin/")) return handleAdmin(request, env, url);
 

@@ -77,6 +77,7 @@ function switchPanel(name) {
   document.querySelectorAll(".step").forEach((button) => button.classList.toggle("active", button.dataset.panel === name));
   document.querySelectorAll(".panel").forEach((panel) => panel.classList.toggle("active", panel.id === `panel-${name}`));
   if (name === "ai" && state.account) refreshAiConversation().catch((error) => notice(error.message, "error"));
+  if (name === "admin" && state.account?.role === "admin") loadAdminFeedback().catch((error) => notice(error.message, "error"));
 }
 
 function broadcastUpdate(kind) {
@@ -321,7 +322,10 @@ async function loadData() {
   renderPushplusState(credentials.pushplus.stored);
   renderAttendanceLogs(attendance.logs);
   renderAiConversation(ai);
-  if (state.account?.role === "admin") loadAdminUsers().catch((error) => notice(error.message, "error"));
+  if (state.account?.role === "admin") {
+    loadAdminUsers().catch((error) => notice(error.message, "error"));
+    loadAdminFeedback().catch((error) => notice(error.message, "error"));
+  }
 }
 
 function renderLogColumn(outcome, items) {
@@ -363,6 +367,31 @@ async function loadAdminUsers() {
     button.classList.toggle("high-risk", user.ai.highRisk);
     button.innerHTML = `<strong>${user.displayName}</strong><span>${user.status} · ${user.role}${user.ai.highRisk ? " · 高危" : ""}</span><small>AI ${user.ai.todayMessages} 条 · 信誉 ${user.ai.reputation.toFixed(1)} · ${formatBytes(user.ai.storageBytes)}</small>`;
     return button;
+  }));
+}
+
+const feedbackCategoryLabel = {
+  bug: "功能异常", suggestion: "功能建议", question: "使用问题", other: "其他",
+};
+
+async function loadAdminFeedback() {
+  const result = await api("/api/admin/feedback");
+  const target = $("#admin-feedback");
+  if (!result.feedback.length) {
+    target.textContent = "还没有用户反馈。";
+    return;
+  }
+  target.replaceChildren(...result.feedback.map((item) => {
+    const card = document.createElement("article");
+    card.className = "feedback-item";
+    const title = document.createElement("strong");
+    title.textContent = item.subject;
+    const meta = document.createElement("span");
+    meta.textContent = `${feedbackCategoryLabel[item.category] ?? "其他"} · ${item.display_name}（${item.login_name}）· ${formatShanghai(item.created_at)}`;
+    const content = document.createElement("p");
+    content.textContent = item.content;
+    card.append(title, meta, content);
+    return card;
   }));
 }
 
@@ -662,6 +691,26 @@ $("#admin-detail").addEventListener("click", async (event) => {
     await Promise.all([loadAdminUsers(), loadAdminDetail(accountId)]);
     report(status === "suspended" ? "用户已封禁，现有登录会话已退出。" : "用户已解除封禁。", "success");
   } catch (error) { report(error.message, "error"); }
+});
+
+$("#feedback-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = event.submitter;
+  button.disabled = true;
+  try {
+    await api("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category: $("#feedback-category").value,
+        subject: $("#feedback-subject").value,
+        content: $("#feedback-content").value,
+      }),
+    });
+    event.currentTarget.reset();
+    report("反馈已提交，管理员会在后台看到你的说明。", "success", "反馈已收到");
+  } catch (error) { report(error.message, "error", "反馈提交失败"); }
+  finally { button.disabled = false; }
 });
 
 async function saveDocument(kind, document, revision) {
