@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="班级魔方自动签到：轮询、课程日历、签到日志和消息提醒。">
+    <title>班级魔方自动签到</title>
+    <link rel="stylesheet" href="/dashboard.css?v=20260821-4">
+    <script src="/calendar-ui.js?v=20260821-4" defer></script>
+    <script src="/dashboard.js?v=20260821-4" defer></script>
+  </head>
+  <body>
+    <section class="auth-gate" id="auth-gate">
+      <div class="auth-card">
+        <a href="/" class="back-link">← 返回首页</a>
+        <span class="kicker">每个人的数据单独保存</span>
+        <h1>登录签到助手</h1>
+        <p>注册后即可设置自己的班级魔方账号、轮询时间、日历和消息提醒。</p>
+        <div class="auth-tabs">
+          <button class="active" data-auth-panel="login">登录</button>
+          <button data-auth-panel="register">注册</button>
+          <button data-auth-panel="recover">找回</button>
+        </div>
+        <form class="auth-panel active" id="auth-login">
+          <label>用户名<input id="login-name" autocomplete="username" required></label>
+          <label>密码<input id="login-password" type="password" autocomplete="current-password" minlength="8" required></label>
+          <button class="button primary" type="submit">登录</button>
+        </form>
+        <form class="auth-panel" id="auth-register">
+          <label>用户名<input id="register-name" autocomplete="username" placeholder="3-64 位英文、数字或 . _ @ -" required></label>
+          <label>密码<input id="register-password" type="password" autocomplete="new-password" minlength="8" placeholder="至少 8 位" required></label>
+          <button class="button primary" type="submit">创建账户</button>
+        </form>
+        <form class="auth-panel" id="auth-recover">
+          <label>用户名<input id="recover-name" autocomplete="username" required></label>
+          <label>恢复码<input id="recover-code" autocomplete="off" required></label>
+          <label>新密码<input id="recover-password" type="password" autocomplete="new-password" minlength="8" required></label>
+          <button class="button primary" type="submit">重设密码</button>
+        </form>
+        <div class="auth-message" id="auth-message">密码不会以明文保存。</div>
+        <div class="recovery-card" id="recovery-card" hidden>
+          <strong>请保存恢复码</strong>
+          <code id="new-recovery-code"></code>
+          <p>它只显示这一次。丢了密码又丢了它，云端也没法表演读心术。</p>
+          <button class="button soft" id="continue-after-recovery">我已经保存</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="app-shell" hidden>
+    <header class="app-header">
+      <a href="/" class="back-link">← 返回首页</a>
+      <div>
+        <span class="kicker">班级魔方自动签到</span>
+        <h1>我的签到助手</h1>
+        <p>设置课程、地点和时间后，云端会按你的安排检查签到任务。</p>
+      </div>
+      <button class="account-chip" id="account-chip">正在认人</button>
+    </header>
+
+    <main class="app-layout">
+      <aside class="step-list" aria-label="设置步骤">
+        <button class="step active" data-panel="profile"><b>1</b><span>轮询设置<small>时间区间与消息推送</small></span></button>
+        <button class="step" data-panel="calendar"><b>2</b><span>打卡日历<small>课程、单次与重复任务</small></span></button>
+        <button class="step" data-panel="observations"><b>3</b><span>签到日志<small>成功、失败与无任务</small></span></button>
+        <button class="step" data-panel="ai"><b>4</b><span>AI 助手<small>聊课表，也能带附件</small></span></button>
+        <button class="step admin-only" data-panel="admin" hidden><b>A</b><span>Admin<small>用户状态与脱敏运维</small></span></button>
+      </aside>
+
+      <section class="workspace" aria-live="polite">
+        <div class="notice" id="notice">正在和云端打招呼……</div>
+
+        <section class="panel active" id="panel-profile">
+          <div class="panel-title">
+            <div><span>第一步</span><h2>轮询设置</h2></div>
+            <span class="save-state" id="settings-revision">尚未读取</span>
+          </div>
+          <div class="identity-summary">
+            <div><small>当前账户</small><strong id="profile-account">正在读取</strong></div>
+            <div><small>自动识别班级</small><strong id="profile-classes">扫码后自动获取</strong></div>
+            <div><small>用户状态</small><strong id="profile-status">正在读取</strong></div>
+          </div>
+          <p class="panel-help">班级会在扫码登录后自动识别。保存设置并启动签到后，云端才会按时间执行。</p>
+          <section class="account-link-card" id="account-link-card">
+            <div class="account-link-head">
+              <div><small>班级魔方账号 <button class="info-tip" type="button" aria-label="了解账号连接">i<span><strong>这是做什么的？</strong>扫码后，网站会获得班级魔方的登录状态并自动识别班级，你不需要手动复制那串很长的 Cookie。<br><br><strong>怎么操作？</strong>点击“扫码登录”，用手机扫描二维码并确认。看到“Cookie 已储存”就连接成功了。Cookie 失效或想换账号时，再点击“切换账号”。</span></button></small><strong id="cookie-state">正在检查 Cookie</strong></div>
+              <button id="start-login" class="button soft">扫码登录</button>
+            </div>
+            <p id="cookie-summary">登录后 Cookie 会加密储存，不会在页面中展示。</p>
+            <div class="qr-stage" id="qr-stage" hidden>
+              <img id="qr-preview" alt="班级魔方扫码登录二维码">
+              <div><strong id="qr-title">请使用手机扫码</strong><p id="qr-detail">页面会自动检查登录状态。</p></div>
+            </div>
+          </section>
+          <div class="form-grid">
+            <label>轮询间隔（分钟）<input id="interval" type="number" min="1" max="120" value="5"></label>
+            <label>日历任务前后窗口（分钟）<input id="calendar-window" type="number" min="1" max="180" value="20"></label>
+          </div>
+          <div class="polling-window-box">
+            <div class="setting-section-head">
+              <div><strong>每天轮询时间段 <button class="info-tip" type="button" aria-label="了解轮询时间段">i<span><strong>普通轮询是什么？</strong>系统在你设置的时间段内，按“轮询间隔”定期查看班级里有没有新的签到任务。<br><br><strong>怎么设置？</strong>例如填 06:00 到 12:00、13:30 到 23:00，中午空出来的时间就不会检查。可以新增多段，也可以删除不需要的时间段。日历里指定的课程任务会按自己的时间窗口优先执行。</span></button></strong><p>可设置多段时间；每段都从自己的开始时间独立计算轮询间隔。</p></div>
+              <button id="add-window" class="button soft" type="button">＋ 新增时间段</button>
+            </div>
+            <div id="polling-window-list" class="polling-window-list"></div>
+          </div>
+          <div class="setting-tool-card">
+            <div><strong>轮询坐标组</strong><p>管理轮询与日历共用的位置；已有课程和任务会继续按名称引用。</p></div>
+            <button id="manage-locations" class="button soft">管理坐标组</button>
+          </div>
+          <label>默认轮询坐标组<select id="default-location"><option value="">请先建立坐标组</option></select></label>
+          <div class="secret-box">
+            <div><strong>个人 PushPlus Token <button class="info-tip" type="button" aria-label="了解 PushPlus">i<span><strong>这是做什么的？</strong>PushPlus 可以把签到成功、签到失败等结果发送到你的微信，让你不用一直打开网站看日志。<br><br><strong>怎么操作？</strong>先前往 <a href="https://www.pushplus.plus/" target="_blank" rel="noreferrer">PushPlus 官网</a> 登录并关注公众号，复制“用户 Token”填到这里并保存，再点击“发送测试消息”。每个人应填写自己的 Token，消息不会发给其他账户。</span></button></strong><p>消息只发给当前账户，不存在全局 Token。</p></div>
+            <div class="secret-saved" id="pushplus-saved" hidden><span>Token 已加密储存</span><button id="switch-pushplus" class="button soft">切换 Token</button><button id="test-pushplus" class="button soft">发送测试消息</button></div>
+            <div class="secret-editor" id="pushplus-editor"><input id="pushplus" type="password" autocomplete="off" placeholder="输入 PushPlus Token"><button id="save-pushplus" class="button soft">保存 Token</button></div>
+          </div>
+          <div class="settings-actions">
+            <button id="save-settings" class="button soft">保存基本设置</button>
+            <button id="start-attendance" class="button primary">启动签到</button>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-calendar">
+          <div class="panel-title">
+            <div><span>第二步</span><h2>打卡日历</h2></div>
+            <span class="save-state" id="calendar-revision">尚未读取</span>
+          </div>
+          <p class="panel-help">在月历中安排课程、单次任务和重复任务，也可以让 AI 先生成一份待确认方案。</p>
+          <div id="calendar-editor"></div>
+          <div class="calendar-save-row">
+            <button id="save-calendar" class="button primary">保存日历</button>
+            <span id="calendar-dirty">所有改动都已保存</span>
+          </div>
+          <details class="json-tools">
+            <summary>高级：导入或导出 calendar.json</summary>
+            <textarea id="calendar-json" spellcheck="false" aria-label="日历 JSON"></textarea>
+            <button id="apply-calendar-json" class="button soft">从 JSON 应用到日历</button>
+          </details>
+        </section>
+
+        <section class="panel" id="panel-observations">
+          <div class="panel-title">
+            <div><span>第三步</span><h2>签到日志</h2></div>
+            <span class="save-state">每类最近 15 条</span>
+          </div>
+          <p class="panel-help">可手动立即检查一次当前任务；没有任务也会留下一条记录，证明程序没睡过头。</p>
+          <div class="inline-action">
+            <div class="class-readout" id="check-class-label">扫码后自动识别班级</div>
+            <button id="run-check" class="button primary">立即检查一次</button>
+          </div>
+          <div class="log-columns">
+            <section class="log-column success"><h3>成功任务 <span id="success-count">0</span></h3><div class="log-list" id="success-log"><p>还没有成功记录。</p></div></section>
+            <section class="log-column failure"><h3>失败任务 <span id="failure-count">0</span></h3><div class="log-list" id="failure-log"><p>还没有失败记录。</p></div></section>
+            <section class="log-column empty"><h3>无任务 <span id="no-task-count">0</span></h3><div class="log-list" id="no-task-log"><p>还没有无任务记录。</p></div></section>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-ai">
+          <div class="panel-title">
+            <div><span>第四步</span><h2>AI 助手</h2></div>
+            <div class="ai-title-actions"><span class="save-state" id="ai-model-state">正在连接 API</span><span class="save-state" id="ai-quota-state">读取额度</span><span class="save-state" id="ai-reputation-state">信誉 100</span><button class="button soft admin-only" id="probe-ai" hidden>测试 AI API</button></div>
+          </div>
+          <p class="panel-help">把课表或一句人话丢进来，它会先生成易读的待确认清单；只有你点击确认部署后才写入日历。</p>
+          <details class="ai-context-box" id="ai-context-box" open>
+            <summary><span>使用前准备</span><small id="ai-context-state">正在检查学院、坐标与课程说明</small></summary>
+            <p>这些说明会写入用户.md，帮助 AI 分清课程昵称和每个地点通常发生什么。</p>
+            <label>所在学院名称<input id="ai-college" maxlength="200" placeholder="例如：计算机学院"></label>
+            <div id="ai-context-fields"></div>
+            <button class="button soft" id="save-ai-context">保存基础资料</button>
+          </details>
+          <section class="ai-quota-panel" aria-label="AI 使用额度">
+            <div><span>我的今日用量 <button class="info-tip" type="button" aria-label="了解 AI 用量">i<span>这里显示你今天已经发送的对话数量。额度接近用完时，进度条会提醒你减少重复提问；第二天会自动重新计算。</span></button></span><strong id="ai-personal-quota-label">读取中</strong><div class="quota-track"><i id="ai-personal-quota-bar"></i></div></div>
+            <div class="admin-only" id="ai-global-quota" hidden><span>全站今日 AI 使用量</span><strong id="ai-global-quota-label">读取中</strong><div class="quota-track"><i id="ai-global-quota-bar"></i></div></div>
+            <div class="ai-reputation-card"><span>我的 AI 信誉分 <button class="info-tip" type="button" aria-label="了解 AI 信誉分">i<span>这里的 AI 只用于课表、课程、地点、打卡日历和相关功能测试。正常提问、表达不清或图片识别失败不会被当作危险行为；持续偏题或试图越权会降低分数。低于 70 分会标记为高危，低于 0 分会自动停用账号。</span></button></span><strong id="ai-reputation-value">100.0</strong><div class="reputation-track"><i id="ai-reputation-bar"></i></div></div>
+          </section>
+          <div class="ai-workbench">
+            <div class="ai-chat" id="ai-chat">
+              <div class="ai-bubble assistant"><strong>日历搭子</strong><p>正在读取对话。先聊清楚，再动日历。</p></div>
+            </div>
+            <div class="ai-composer">
+              <textarea id="ai-message" maxlength="4000" placeholder="例如：设置一个每日 8:00 在 E13 签到的日历。按 Ctrl/Command + Enter 发送。"></textarea>
+              <div class="ai-drop-zone" id="ai-drop-zone"><strong>把课表图片拖到这里</strong><span>也可以直接粘贴截图，或点击下方按钮选择图片和文本文件。图片会压缩后交给 AI 识别，不会作为文件长期保存。</span></div>
+              <div class="ai-file-list" id="ai-file-list"></div>
+              <div class="ai-compose-actions">
+                <label class="button soft file-button"><span>＋ 图片或文件</span><input id="ai-files" type="file" multiple accept="image/jpeg,image/png,image/webp,.txt,.csv,.json,.ics"></label>
+                <button class="button soft" id="clear-ai-files" type="button" hidden>清空附件</button>
+                <span id="ai-file-state">尚未添加附件</span>
+                <button class="button danger-button" id="stop-ai" type="button" hidden>终止思考</button>
+                <button class="button soft" id="clear-ai-context" type="button">清除上下文</button><button class="info-tip" type="button" aria-label="了解清除上下文">i<span>清除上下文后，AI不会保留对话中的上下文记忆；你手动保存的用户.md和基础资料仍会保留。</span></button>
+                <button class="button primary" id="send-ai">发送</button>
+              </div>
+              <div class="vision-license admin-only" hidden><div><strong>启用课表图片识别</strong><p>图片识别使用 Meta Llama 3.2 Vision。首次使用前，Cloudflare 要求账户管理员同意 Meta 的模型许可和可接受使用政策。</p></div><a href="https://www.llama.com/llama3_2/license/" target="_blank" rel="noreferrer">先阅读许可</a><button class="button soft" id="agree-vision-license" type="button">我已阅读并同意，启用图片识别</button></div>
+            </div>
+          </div>
+          <details class="ai-memory-box">
+            <summary>用户.md · 长期记忆与上下文管理</summary>
+            <p>最多 8000 字。旧对话会定期压缩到这里；你也可以直接修正重要信息。</p>
+            <textarea id="ai-memory" maxlength="8000" placeholder="# 用户记忆"></textarea>
+            <p><strong>自动对话摘要：</strong><span id="ai-auto-summary">暂无；对话较长后自动生成。</span></p>
+            <div class="ai-memory-actions"><button class="button soft" id="save-ai-memory">保存用户.md</button></div>
+          </details>
+        </section>
+
+        <section class="panel" id="panel-admin">
+          <div class="panel-title">
+            <div><span>ADMIN</span><h2>用户运维</h2></div>
+            <span class="save-state">敏感字段受控查看</span>
+          </div>
+          <p class="panel-help">可查看用户状态、轮询配置、日志、AI 用量与信誉。密码、Cookie 和 PushPlus Token 永不展示；恢复密钥仅在单独点击并留下审计记录后显示。</p>
+          <div class="admin-grid"><div class="admin-users" id="admin-users"><p>正在读取用户……</p></div><div class="admin-detail" id="admin-detail"><p>选择一位用户查看脱敏详情。</p></div></div>
+        </section>
+      </section>
+    </main>
+    </div>
+    <dialog class="operation-dialog" id="operation-dialog">
+      <div class="operation-icon" id="operation-icon">i</div>
+      <h3 id="operation-title">操作结果</h3>
+      <p id="operation-message"></p>
+      <button class="button primary" id="operation-close" type="button">知道了</button>
+    </dialog>
+  </body>
+</html>

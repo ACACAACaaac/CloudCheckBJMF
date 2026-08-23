@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="班级魔方自动签到：支持分时轮询、课程日历、坐标组、签到日志和微信提醒。">
+    <meta name="google-site-verification" content="OKain9v9spGg2Kn4_gciOHprUOVg5QnFbwPUbYaM60g">
+    <link rel="canonical" href="https://davidsun.kdns.fr/">
+    <meta property="og:title" content="班级魔方自动签到">
+    <meta property="og:description" content="连接班级魔方账号后，自动检查签到任务、管理课程日历并接收微信提醒。">
+    <meta property="og:url" content="https://davidsun.kdns.fr/">
+    <meta property="og:type" content="website">
+    <title>班级魔方自动签到</title>
+    <link rel="stylesheet" href="/styles.css?v=20260821-3">
+    <script src="/app.js?v=20260821-3" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="#top" aria-label="返回顶部">
+          <span class="brand-mark" aria-hidden="true">签</span>
+          <span>
+            <strong>班级魔方自动签到</strong>
+            <small>大学生省心工具</small>
+          </span>
+        </a>
+        <nav aria-label="主导航">
+          <a href="#features">全部功能</a>
+          <a href="#automation">如何自动签到</a>
+          <a href="#results">使用效果</a>
+        </nav>
+        <a class="stage-pill" href="/app">进入应用</a>
+      </header>
+
+      <main id="top">
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <p class="eyebrow">无需一直打开网页</p>
+            <h1 class="product-title" id="hero-title">班级魔方<br><em>自动签到</em></h1>
+            <p class="hero-slogan">少盯几次手机，多睡一会觉。</p>
+            <p class="hero-lead">连接班级魔方账号、选好签到坐标并启动服务后，网站会在云端持续检查签到任务。普通轮询、课程日历、地图坐标、AI 课表识别、签到日志和微信提醒都放在同一个网站里。</p>
+            <div class="hero-actions">
+              <a class="button primary" href="/app">开始设置</a>
+              <a class="button secondary" href="#features">先看看能做什么</a>
+            </div>
+            <p class="hero-note"><strong>项目仍在测试。</strong> 网络、Cookie 或班级魔方页面变化都可能导致签到失败，请留意日志和消息提醒。</p>
+          </div>
+
+          <div class="console-preview" aria-label="控制台预览">
+            <div class="console-topline">
+              <span>今日签到助手</span>
+                <span class="live-status" data-health="checking">正在连接</span>
+            </div>
+            <div class="date-row">
+              <div>
+                <small>北京时间</small>
+                <strong id="clock">--:--:--</strong>
+              </div>
+              <span id="today">----年--月--日</span>
+            </div>
+            <div class="timeline">
+              <div class="timeline-hour"><span>06</span><i></i></div>
+              <div class="timeline-hour active"><span>12</span><i></i></div>
+              <div class="timeline-hour"><span>18</span><i></i></div>
+              <div class="timeline-hour"><span>23</span><i></i></div>
+            </div>
+            <div class="preview-grid">
+              <article>
+                <span>执行方式</span>
+                <strong class="compact-value">日历 + 轮询</strong>
+                <p>任务与普通检查互不打架</p>
+              </article>
+              <article>
+                <span>云端小仓库</span>
+                <strong class="compact-value" id="database-status">检查中</strong>
+                <p id="database-detail">等待云端健康检查</p>
+              </article>
+            </div>
+            <div class="event-card">
+              <div class="event-icon">✓</div>
+              <div>
+                <strong>每位用户独立运行</strong>
+                <span>账号、任务、日志和通知互不串号</span>
+              </div>
+              <b>完成</b>
+            </div>
+          </div>
+        </section>
+
+        <section class="status-section" id="features" aria-labelledby="status-title">
+          <div class="section-heading">
+            <p class="eyebrow">主要功能</p>
+            <h2 id="status-title">不只是一个定时器，而是一套完整的自动签到工具。</h2>
+          </div>
+          <div class="status-grid">
+            <article class="status-card complete">
+              <span>01</span>
+              <h3>全自动云端签到</h3>
+              <p>点击“启动签到”后，即使关闭浏览器，云端仍会按时间段持续检查班级魔方任务。发现任务后使用你指定的坐标提交，并把成功、失败或没有任务分别记录下来。</p>
+              <b>核心功能 · 无需挂机</b>
+            </article>
+            <article class="status-card complete">
+              <span>02</span>
+              <h3>扫码连接与微信通知</h3>
+              <p>用手机扫描二维码连接自己的班级魔方账号，网站会自动保存登录状态并识别班级。填写个人 PushPlus Token 后，签到结果还可以直接推送到微信。</p>
+              <b>不需要手动复制 Cookie</b>
+            </article>
+            <article class="status-card complete">
+              <span>03</span>
+              <h3>地图选择签到坐标</h3>
+              <p>在地图上移动、缩放并点击目标位置，就能创建一个有名称的坐标组，例如“教学楼 E13”或“寝室”。普通轮询和日历课程都可以直接选择已保存的坐标组。</p>
+              <b>也支持手动输入经纬度</b>
+            </article>
+            <article class="status-card">
+              <span>04</span>
+              <h3>可视化打卡日历</h3>
+              <p>月历会展示每天的安排。课程任务负责绑定课程和地点，单次任务适合临时签到，重复任务适合每天或每周课表；任务时间附近会优先按对应地点检查。</p>
+              <b>临时安排和固定课表都能放</b>
+            </article>
+            <article class="status-card">
+              <span>05</span>
+              <h3>AI 读取课表和安排日历</h3>
+              <p>可以直接告诉 AI“每天 8:00 在 E13 签到”，也可以粘贴、拖入课表截图或文本文件。AI 先把改动整理成清单，只有你确认后才会写入日历。</p>
+              <b>先预览，再部署</b>
+            </article>
+            <article class="status-card">
+              <span>06</span>
+              <h3>多时间段、日志与状态管理</h3>
+              <p>每天可以设置多段轮询时间，避开不需要检查的时段。成功、失败、无任务日志分栏展示，账户状态、AI 用量和签到开关也都能在页面中直接查看。</p>
+              <b>发生了什么，一眼能找到</b>
+            </article>
+          </div>
+        </section>
+
+        <section class="security-section automation-section" id="automation" aria-labelledby="security-title">
+          <div class="security-copy">
+            <p class="eyebrow">自动化功能详解</p>
+            <h2 id="security-title">设置一次，云端按你的规则继续工作。</h2>
+            <p>第一次使用时完成右侧四步即可启动。以后课程和地点发生变化，只需要修改对应设置，不需要重新安装程序，也不需要让电脑或树莓派一直开机。</p>
+          </div>
+          <div class="security-list">
+            <div><span>1</span><p><strong>注册并扫码连接账号</strong>创建网站账户后扫描班级魔方二维码。手机确认登录，网页显示“Cookie 已储存”就表示连接完成，班级通常也会自动识别。</p></div>
+            <div><span>2</span><p><strong>建立坐标组</strong>打开地图，在需要签到的位置点击并命名；也可以输入经纬度。再从“默认轮询坐标组”选择平时最常用的地点。</p></div>
+            <div><span>3</span><p><strong>安排轮询与课程日历</strong>设置每天检查的时间段和间隔。有固定课表时，再建立课程、单次任务或重复任务，让不同课程使用各自地点。</p></div>
+            <div><span>4</span><p><strong>测试通知并启动签到</strong>如需微信提醒，保存 PushPlus Token 并发送测试消息。最后点击“启动签到”，之后可在签到日志中查看每一次检查结果。</p></div>
+          </div>
+        </section>
+
+        <section class="roadmap-section" id="results" aria-labelledby="roadmap-title">
+          <p class="eyebrow">使用效果</p>
+          <h2 id="roadmap-title">这里会展示真实的使用成果。</h2>
+          <p>稍后会加入签到日志、微信通知或日历安排的实际截图。截图只展示效果，不公开 Cookie、Token、精确坐标等敏感信息。</p>
+          <div class="result-placeholder"><span>成果图片预留位</span><strong>图片准备好后，会在这里和大家见面</strong></div>
+          <div class="policy-strip">
+            <span>只替本人签到</span>
+            <span>地图选点</span>
+            <span>课程日历</span>
+            <span>AI 课表助手</span>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <div>
+          <strong>班级魔方自动签到</strong>
+          <span>课程日历、自动轮询和消息提醒放在同一个地方。</span>
+        </div>
+        <p>仅限获得授权并符合学校规则、服务条款和当地法律的场景。</p>
+      </footer>
+    </div>
+  </body>
+</html>

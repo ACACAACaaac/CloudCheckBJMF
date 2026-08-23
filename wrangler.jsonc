@@ -1,0 +1,61 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "autocheck-bjmf-cloud",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-08-19",
+  "compatibility_flags": ["nodejs_compat", "enable_request_signal"],
+  "workers_dev": true,
+  "placement": {
+    "mode": "smart"
+  },
+  "routes": [
+    {
+      "pattern": "davidsun.kdns.fr",
+      "custom_domain": true
+    }
+  ],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "autocheck-bjmf-cloud-db",
+      "database_id": "87a3133f-470e-4615-a526-95312f7a667e",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SCHEDULER",
+        "class_name": "ReadOnlyScheduler"
+      },
+      {
+        "name": "K8N_GATEWAY",
+        "class_name": "K8nGateway"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "scheduler-v1",
+      "new_sqlite_classes": ["ReadOnlyScheduler"]
+    },
+    {
+      "tag": "k8n-gateway-v1",
+      "new_sqlite_classes": ["K8nGateway"]
+    }
+  ],
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "observability": {
+    "enabled": true
+  },
+  "ai": {
+    "binding": "AI"
+  }
+}

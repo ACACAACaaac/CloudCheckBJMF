@@ -1,0 +1,14 @@
+{
+  "name": "autocheck-bjmf-cloud",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "wrangler": "4.124.0"
+  },
+  "dependencies": {
+    "qrcode": "1.5.4"
+  },
+  "scripts": {
+    "test:calendar-ai": "node test/calendar-ai-regression.mjs"
+  }
+}
