@@ -66,9 +66,41 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .brand strong, .brand small { display: block; }
 .brand strong { letter-spacing: -0.02em; }
 .brand small { margin-top: 2px; color: var(--muted); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; }
-nav { display: flex; gap: 30px; }
+nav { display: flex; align-items: center; gap: 30px; }
 nav a { color: var(--muted); font-size: 14px; text-decoration: none; }
 nav a:hover { color: var(--blue-deep); }
+.github-nav { display: inline-flex; align-items: center; gap: 5px; position: relative; }
+.github-note summary {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--blue-deep);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  list-style: none;
+}
+.github-note summary::-webkit-details-marker { display: none; }
+.github-note summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.github-tip {
+  width: min(280px, 75vw);
+  padding: 11px 12px;
+  position: absolute;
+  top: 27px;
+  right: 0;
+  z-index: 20;
+  border: 1px solid var(--line);
+  border-radius: 12px 5px 12px 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.github-tip a { color: var(--blue-deep); font-size: inherit; font-weight: 700; text-decoration: underline; }
 .stage-pill { justify-self: end; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--blue-deep); font-size: 13px; font-weight: 800; text-decoration: none; }
 
 .hero {
