@@ -2,6 +2,7 @@
   "name": "autocheck-bjmf-cloud",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@9.15.5",
   "devDependencies": {
     "wrangler": "4.124.0"
   },
