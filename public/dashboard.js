@@ -695,6 +695,7 @@ $("#admin-detail").addEventListener("click", async (event) => {
 
 $("#feedback-form").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const form = event.currentTarget;
   const button = event.submitter;
   button.disabled = true;
   try {
@@ -707,7 +708,7 @@ $("#feedback-form").addEventListener("submit", async (event) => {
         content: $("#feedback-content").value,
       }),
     });
-    event.currentTarget.reset();
+    form.reset();
     report("反馈已提交，管理员会在后台看到你的说明。", "success", "反馈已收到");
   } catch (error) { report(error.message, "error", "反馈提交失败"); }
   finally { button.disabled = false; }
