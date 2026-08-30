@@ -331,6 +331,10 @@ input:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px r
 .feedback-item { padding: 14px; display: grid; gap: 5px; border: 1px solid var(--line); border-radius: 14px; background: #f8fbfe; }
 .feedback-item span { color: var(--muted); font-size: 11px; }
 .feedback-item p { margin: 2px 0 0; color: var(--ink); line-height: 1.65; white-space: pre-wrap; }
+.feedback-item textarea { width: 100%; min-height: 80px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; resize: vertical; }
+.feedback-reply { padding: 10px; border-radius: 10px; background: #e8f5ec; color: #175f38 !important; }
+.my-feedback-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.my-feedback-section h3 { margin: 0 0 10px; }
 .faq-list { display: grid; gap: 9px; }
 .faq-list details { padding: 0 15px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
 .faq-list summary { min-height: 52px; display: flex; align-items: center; color: var(--ink); font-weight: 800; cursor: pointer; }

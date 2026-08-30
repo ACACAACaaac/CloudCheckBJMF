@@ -322,6 +322,7 @@ async function loadData() {
   renderPushplusState(credentials.pushplus.stored);
   renderAttendanceLogs(attendance.logs);
   renderAiConversation(ai);
+  await loadMyFeedback();
   if (state.account?.role === "admin") {
     loadAdminUsers().catch((error) => notice(error.message, "error"));
     loadAdminFeedback().catch((error) => notice(error.message, "error"));
@@ -390,7 +391,51 @@ async function loadAdminFeedback() {
     meta.textContent = `${feedbackCategoryLabel[item.category] ?? "其他"} · ${item.display_name}（${item.login_name}）· ${formatShanghai(item.created_at)}`;
     const content = document.createElement("p");
     content.textContent = item.content;
-    card.append(title, meta, content);
+    const reply = document.createElement("textarea");
+    reply.placeholder = "回复用户...";
+    reply.value = item.admin_reply ?? "";
+    reply.maxLength = 2000;
+    const send = document.createElement("button");
+    send.className = "button soft";
+    send.textContent = item.admin_reply ? "更新回复" : "发送回复";
+    send.addEventListener("click", async () => {
+      send.disabled = true;
+      try {
+        await api(`/api/admin/feedback/${encodeURIComponent(item.id)}/reply`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reply: reply.value }),
+        });
+        report("回复已发送给用户。", "success");
+        await loadAdminFeedback();
+      } catch (error) { report(error.message, "error", "回复发送失败"); }
+      finally { send.disabled = false; }
+    });
+    if (item.admin_reply) {
+      const replyTime = document.createElement("span");
+      replyTime.textContent = `上次回复：${formatShanghai(item.admin_reply_at)}`;
+      card.append(title, meta, content, replyTime, reply, send);
+    } else card.append(title, meta, content, reply, send);
+    return card;
+  }));
+}
+
+async function loadMyFeedback() {
+  const result = await api("/api/feedback");
+  const target = $("#my-feedback");
+  if (!result.feedback.length) { target.textContent = "你还没有提交反馈。"; return; }
+  target.replaceChildren(...result.feedback.map((item) => {
+    const card = document.createElement("article");
+    card.className = "feedback-item";
+    const title = document.createElement("strong");
+    title.textContent = item.subject;
+    const content = document.createElement("p");
+    content.textContent = item.content;
+    card.append(title, content);
+    if (item.admin_reply) {
+      const reply = document.createElement("p");
+      reply.className = "feedback-reply";
+      reply.textContent = `管理员回复：${item.admin_reply}`;
+      card.append(reply);
+    }
     return card;
   }));
 }
@@ -709,6 +754,7 @@ $("#feedback-form").addEventListener("submit", async (event) => {
       }),
     });
     form.reset();
+    await loadMyFeedback();
     report("反馈已提交，管理员会在后台看到你的说明。", "success", "反馈已收到");
   } catch (error) { report(error.message, "error", "反馈提交失败"); }
   finally { button.disabled = false; }

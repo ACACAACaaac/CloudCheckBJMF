@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { submitFeedback } from "../src/feedback.js";
+import { replyFeedback, submitFeedback } from "../src/feedback.js";
 
 const writes = [];
 const env = {
@@ -7,7 +7,7 @@ const env = {
     prepare(sql) {
       return {
         bind(...values) {
-          return { run: async () => writes.push({ sql, values }) };
+          return { run: async () => { writes.push({ sql, values }); return { meta: { changes: 1 } }; } };
         },
       };
     },
@@ -26,4 +26,8 @@ await submitFeedback(env, "account", { category: "suggestion", subject: "增加�
 assert.equal(writes.length, 1);
 assert.equal(writes[0].values[1], "account");
 assert.equal(writes[0].values[2], "suggestion");
+await assert.rejects(replyFeedback(env, "feedback", { reply: "" }), /回复内容需要包含/);
+await replyFeedback(env, "feedback", { reply: "已收到，会处理。" });
+assert.equal(writes.length, 2);
+assert.equal(writes[1].values[0], "已收到，会处理。");
 console.log("feedback validation suite passed");

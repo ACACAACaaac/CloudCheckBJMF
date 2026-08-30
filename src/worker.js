@@ -10,7 +10,7 @@ import {
 } from "./native-auth.js";
 import { inspectClassTasks, recentObservations } from "./read-only.js";
 import { executeAttendanceOnce, recentAttendanceLogs, testPushplus } from "./attendance.js";
-import { adminFeedback, submitFeedback } from "./feedback.js";
+import { adminFeedback, replyFeedback, submitFeedback, userFeedback } from "./feedback.js";
 import {
   adminUserDetail, adminUsers, deleteAdminUser, revealRecoveryCode, setAdminUserStatus,
 } from "./admin.js";
@@ -295,6 +295,16 @@ async function handleAdmin(request, env, url) {
   if (url.pathname === "/api/admin/feedback" && request.method === "GET") {
     return json({ ok: true, feedback: await adminFeedback(env) });
   }
+  const feedbackReplyMatch = /^\/api\/admin\/feedback\/([0-9a-f-]{36})\/reply$/i.exec(url.pathname);
+  if (feedbackReplyMatch) {
+    if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
+    try {
+      await replyFeedback(env, feedbackReplyMatch[1], await requestJson(request));
+      return json({ ok: true });
+    } catch (error) {
+      return json({ ok: false, error: error instanceof Error ? error.message : "无法发送回复" }, 400);
+    }
+  }
   const recoveryMatch = /^\/api\/admin\/users\/([0-9a-f-]{36})\/recovery$/i.exec(url.pathname);
   if (recoveryMatch) {
     if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
@@ -340,6 +350,7 @@ async function handleAdmin(request, env, url) {
 async function handleFeedback(request, env) {
   const auth = await authenticatedAccount(request, env);
   if (auth.response) return auth.response;
+  if (request.method === "GET") return json({ ok: true, feedback: await userFeedback(env, auth.account.id) });
   if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
   try {
     return json({ ok: true, ...(await submitFeedback(env, auth.account.id, await requestJson(request))) }, 201);

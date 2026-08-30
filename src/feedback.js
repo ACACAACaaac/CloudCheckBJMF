@@ -25,7 +25,7 @@ export async function submitFeedback(env, accountId, body) {
 
 export async function adminFeedback(env) {
   const rows = await env.DB.prepare(
-    `SELECT f.id, f.category, f.subject, f.content, f.created_at,
+    `SELECT f.id, f.category, f.subject, f.content, f.created_at, f.admin_reply, f.admin_reply_at,
             a.display_name, c.login_name
        FROM feedback f
        JOIN accounts a ON a.id=f.account_id
@@ -34,4 +34,20 @@ export async function adminFeedback(env) {
       LIMIT 100`,
   ).all();
   return rows.results ?? [];
+}
+
+export async function userFeedback(env, accountId) {
+  const rows = await env.DB.prepare(
+    `SELECT id, category, subject, content, created_at, admin_reply, admin_reply_at
+       FROM feedback WHERE account_id=? ORDER BY created_at DESC LIMIT 100`,
+  ).bind(accountId).all();
+  return rows.results ?? [];
+}
+
+export async function replyFeedback(env, feedbackId, body) {
+  const reply = text(body.reply, "回复内容", 1, 2_000);
+  const result = await env.DB.prepare(
+    `UPDATE feedback SET admin_reply=?, admin_reply_at=CURRENT_TIMESTAMP WHERE id=?`,
+  ).bind(reply, feedbackId).run();
+  if (!result.meta?.changes) throw new Error("反馈不存在");
 }
