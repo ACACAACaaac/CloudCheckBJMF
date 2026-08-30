@@ -460,7 +460,17 @@ async function loadAdminDetail(accountId) {
       <button class="button danger-button" data-admin-action="delete" data-account-id="${user.id}" data-login-name="${user.loginName}">删除用户</button>
     </div>
     <h4>最近 AI 评分</h4><div class="admin-score-preview">${result.aiScores.map((item) => `<p><strong>${item.score}</strong> ${item.score_reason} · ${formatShanghai(item.created_at)}</p>`).join("") || "暂无评分"}</div>
+    <h4>AI 对话诊断</h4><div class="admin-log-preview" id="admin-ai-diagnostics">${user.ai.diagnosticOptIn ? "正在加载用户授权的对话……" : "该用户未授权查看对话内容。"}</div>
     <h4>最近日志</h4><div class="admin-log-preview">${result.logs.map((log) => `<p><strong>${log.outcome}</strong> ${log.class_id}${log.task_id ? ` / ${log.task_id}` : ""} · ${formatShanghai(log.attempted_at)}</p>`).join("") || "暂无日志"}</div>`;
+  if (user.ai.diagnosticOptIn) {
+    const target = $("#admin-ai-diagnostics");
+    target.replaceChildren(...result.aiMessages.map((message) => {
+      const item = document.createElement("p");
+      item.textContent = `${message.role === "user" ? "用户" : "AI"} · ${formatShanghai(message.created_at)}\n${message.content}`;
+      return item;
+    }));
+    if (!result.aiMessages.length) target.textContent = "暂无可供诊断的对话。";
+  }
 }
 
 function renderAiConversation(conversation, options = {}) {
@@ -477,6 +487,7 @@ function renderAiConversation(conversation, options = {}) {
   $(".vision-license").hidden = state.account?.role !== "admin" || Boolean(conversation.vision?.enabled);
   renderAiQuota(conversation.quota);
   $("#ai-memory").value = conversation.memory ?? "# 用户记忆";
+  $("#ai-diagnostic-consent").checked = Boolean(conversation.diagnosticOptIn);
   $("#ai-auto-summary").textContent = conversation.autoSummary || "暂无；对话较长后自动生成。";
   renderAiContext(conversation.context);
   const chat = $("#ai-chat");
@@ -1241,6 +1252,29 @@ $("#save-ai-context").addEventListener("click", async () => {
     report("学院、坐标和课程说明已写入用户.md。", "success", "AI 基础资料已保存");
   } catch (error) { report(error.message, "error", "基础资料未保存"); }
   finally { button.disabled = false; }
+});
+
+$("#reset-ai-context").addEventListener("click", async () => {
+  if (!confirm("将清空学院、坐标和课程说明；其他用户.md 记忆不会删除。确定继续吗？")) return;
+  try {
+    await api("/api/ai/context/reset", { method: "POST" });
+    renderAiConversation(await api("/api/ai/conversation"));
+    report("基础资料已清空，请按需要重新填写。", "success", "基础资料已重置");
+  } catch (error) { report(error.message, "error", "基础资料重置失败"); }
+});
+
+$("#ai-diagnostic-consent").addEventListener("change", async (event) => {
+  const input = event.currentTarget;
+  input.disabled = true;
+  try {
+    await api("/api/ai/diagnostic-consent", {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: input.checked }),
+    });
+    report(input.checked ? "已允许管理员在必要排障时查看最近 10 条文字对话。" : "已关闭管理员对话诊断授权。", "success");
+  } catch (error) {
+    input.checked = !input.checked;
+    report(error.message, "error", "设置未保存");
+  } finally { input.disabled = false; }
 });
 
 $("#probe-ai").addEventListener("click", async () => {

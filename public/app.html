@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="班级魔方自动签到：轮询、课程日历、签到日志和消息提醒。">
     <title>班级魔方自动签到</title>
-    <link rel="stylesheet" href="/dashboard.css?v=20260830-1">
-    <script src="/calendar-ui.js?v=20260830-1" defer></script>
-    <script src="/dashboard.js?v=20260830-1" defer></script>
+    <link rel="stylesheet" href="/dashboard.css?v=20260830-2">
+    <script src="/calendar-ui.js?v=20260830-2" defer></script>
+    <script src="/dashboard.js?v=20260830-2" defer></script>
   </head>
   <body>
     <section class="auth-gate" id="auth-gate">
@@ -163,10 +163,10 @@
           <p class="panel-help">把课表或一句人话丢进来，它会先生成易读的待确认清单；只有你点击确认部署后才写入日历。</p>
           <details class="ai-context-box" id="ai-context-box" open>
             <summary><span>使用前准备</span><small id="ai-context-state">正在检查学院、坐标与课程说明</small></summary>
-            <p>这些说明会写入用户.md，帮助 AI 分清课程昵称和每个地点通常发生什么。</p>
+            <p>这里是 AI 基础资料的唯一编辑处，会自动写入用户.md。不要在下方长期记忆中重复填写它们。</p>
             <label>所在学院名称<input id="ai-college" maxlength="200" placeholder="例如：计算机学院"></label>
             <div id="ai-context-fields"></div>
-            <button class="button soft" id="save-ai-context">保存基础资料</button>
+            <div class="ai-context-actions"><button class="button soft" id="save-ai-context">保存基础资料</button><button class="button soft" id="reset-ai-context" type="button">重置基础资料</button></div>
           </details>
           <section class="ai-quota-panel" aria-label="AI 使用额度">
             <div><span>我的今日用量 <button class="info-tip" type="button" aria-label="了解 AI 用量">i<span>这里显示你今天已经发送的对话数量。额度接近用完时，进度条会提醒你减少重复提问；第二天会自动重新计算。</span></button></span><strong id="ai-personal-quota-label">读取中</strong><div class="quota-track"><i id="ai-personal-quota-bar"></i></div></div>
@@ -194,10 +194,10 @@
           </div>
           <details class="ai-memory-box">
             <summary>用户.md · 长期记忆与上下文管理</summary>
-            <p>最多 8000 字。旧对话会定期压缩到这里；你也可以直接修正重要信息。</p>
-            <textarea id="ai-memory" maxlength="8000" placeholder="# 用户记忆"></textarea>
+            <p>最多 8000 字。这里仅保存其他长期记忆；学院、坐标和课程说明由上方“使用前准备”统一维护。旧对话摘要也会在这里保留。</p>
+            <textarea id="ai-memory" maxlength="8000" placeholder="# 其他长期记忆"></textarea>
             <p><strong>自动对话摘要：</strong><span id="ai-auto-summary">暂无；对话较长后自动生成。</span></p>
-            <div class="ai-memory-actions"><button class="button soft" id="save-ai-memory">保存用户.md</button></div>
+            <div class="ai-memory-actions"><button class="button soft" id="save-ai-memory">保存用户.md</button><div class="diagnostic-consent"><input id="ai-diagnostic-consent" type="checkbox"><label for="ai-diagnostic-consent">允许管理员在我主动反馈排障时查看最近 10 条纯文本 AI 对话</label><button class="info-tip" type="button" aria-label="了解对话诊断授权">i<span>默认关闭。开启后，管理员只可在用户详情中查看最近十条文字对话，用于排查日历 AI 问题；图片和附件原文不会显示。</span></button></div></div>
           </details>
         </section>
 

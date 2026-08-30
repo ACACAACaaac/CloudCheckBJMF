@@ -94,6 +94,7 @@ async function memoryRow(env, accountId) {
   ).bind(accountId).first();
   return {
     content: row?.content ?? "# 用户记忆\n",
+    customContent: customMemoryText(row?.content ?? "# 用户记忆\n") || "# 其他长期记忆",
     summary: row?.summary_content ?? "",
     context: parseJson(row?.context_json ?? "{}", { college: "", locations: {}, courses: {} }),
     updatedAt: row?.updated_at ?? null,
@@ -157,13 +158,17 @@ function contextMarkdown(requirements) {
   ].join("\n");
 }
 
-function replaceContextBlock(content, block) {
-  const start = content.indexOf(CONTEXT_START);
-  const end = content.indexOf(CONTEXT_END);
-  const custom = start >= 0 && end >= start
-    ? `${content.slice(0, start)}${content.slice(end + CONTEXT_END.length)}`.trim()
-    : content.trim();
-  return `${block}\n\n${custom || "# 其他长期记忆"}`.trim();
+export function customMemoryText(content) {
+  const value = String(content ?? "");
+  const start = value.indexOf(CONTEXT_START);
+  const end = value.indexOf(CONTEXT_END);
+  return (start >= 0 && end >= start
+    ? `${value.slice(0, start)}${value.slice(end + CONTEXT_END.length)}`
+    : value).trim();
+}
+
+export function buildAiMemory(requirements, customContent) {
+  return `${contextMarkdown(requirements)}\n\n${customMemoryText(customContent) || "# 其他长期记忆"}`.trim();
 }
 
 async function quotaState(env, accountId, role) {
@@ -221,7 +226,7 @@ export async function aiConversation(env, account) {
   ]);
   const requirements = contextRequirements(calendar.calendar, calendar.username, memory.context);
   return {
-    model: MODEL, interactive: true, memory: memory.content, autoSummary: memory.summary,
+    model: MODEL, interactive: true, memory: memory.customContent, autoSummary: memory.summary,
     memoryUpdatedAt: memory.updatedAt,
     context: {
       college: requirements.normalized.college,
@@ -233,6 +238,7 @@ export async function aiConversation(env, account) {
     },
     quota,
     vision: { enabled: visionAccepted, model: VISION_MODEL },
+    diagnosticOptIn: Boolean(account.ai_diagnostic_opt_in),
     reputation: { score: Number(account.ai_reputation ?? 100), highRisk: Number(account.ai_reputation ?? 100) < 70 },
     pending,
     activeTurn: activeTurn ? { id: activeTurn.id, status: activeTurn.status, phase: activeTurn.phase, createdAt: activeTurn.created_at, updatedAt: activeTurn.updated_at } : null,
@@ -241,18 +247,14 @@ export async function aiConversation(env, account) {
 }
 
 export async function saveAiMemory(env, accountId, content) {
-  let normalized = String(content ?? "").trim();
   const [calendar, memory] = await Promise.all([calendarContext(env, accountId), memoryRow(env, accountId)]);
   const requirements = contextRequirements(calendar.calendar, calendar.username, memory.context);
-  if (requirements.calendarUserReady && requirements.missing.length === 0) {
-    normalized = replaceContextBlock(normalized, contextMarkdown(requirements));
-  }
+  const normalized = buildAiMemory(requirements, content);
   if (normalized.length > MEMORY_LIMIT) throw new Error("用户.md 不能超过 8000 个字符");
-  const value = normalized || "# 用户记忆";
   await env.DB.prepare(
     `INSERT INTO ai_user_memory (account_id, content, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
      ON CONFLICT(account_id) DO UPDATE SET content=excluded.content, updated_at=CURRENT_TIMESTAMP`,
-  ).bind(accountId, value).run();
+  ).bind(accountId, normalized).run();
   return memoryRow(env, accountId);
 }
 
@@ -261,7 +263,7 @@ export async function saveAiContext(env, accountId, value) {
   const requirements = contextRequirements(calendar.calendar, calendar.username, value ?? {});
   if (!requirements.calendarUserReady) throw new Error("请先在打卡日历中保存当前用户，再填写 AI 资料");
   if (requirements.missing.length) throw new Error(`还需填写：${requirements.missing.join("、")}`);
-  const content = replaceContextBlock(memory.content, contextMarkdown(requirements));
+  const content = buildAiMemory(requirements, memory.customContent);
   if (content.length > MEMORY_LIMIT) throw new Error("写入基础资料后用户.md 超过 8000 字，请先精简其他记忆");
   await env.DB.prepare(
     `INSERT INTO ai_user_memory (account_id, content, context_json, updated_at)
@@ -270,6 +272,25 @@ export async function saveAiContext(env, accountId, value) {
        context_json=excluded.context_json, updated_at=CURRENT_TIMESTAMP`,
   ).bind(accountId, content, JSON.stringify(requirements.normalized)).run();
   return { memory: await memoryRow(env, accountId), requirements };
+}
+
+export async function resetAiContext(env, accountId) {
+  const [calendar, memory] = await Promise.all([calendarContext(env, accountId), memoryRow(env, accountId)]);
+  const requirements = contextRequirements(calendar.calendar, calendar.username, {});
+  const content = buildAiMemory(requirements, memory.customContent);
+  await env.DB.prepare(
+    `INSERT INTO ai_user_memory (account_id, content, context_json, updated_at)
+     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(account_id) DO UPDATE SET content=excluded.content,
+       context_json=excluded.context_json, updated_at=CURRENT_TIMESTAMP`,
+  ).bind(accountId, content, JSON.stringify(requirements.normalized)).run();
+  return { memory: await memoryRow(env, accountId), requirements };
+}
+
+export async function setAiDiagnosticOptIn(env, accountId, enabled) {
+  await env.DB.prepare("UPDATE accounts SET ai_diagnostic_opt_in=?, updated_at=CURRENT_TIMESTAMP WHERE id=?")
+    .bind(enabled ? 1 : 0, accountId).run();
+  return { enabled: Boolean(enabled) };
 }
 
 async function enforceRateLimit(env, account) {

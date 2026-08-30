@@ -34,6 +34,7 @@ function mappedUser(row) {
       totalInputTokens: Number(row.ai_input_tokens ?? 0),
       totalOutputTokens: Number(row.ai_output_tokens ?? 0),
       storageBytes: Number(row.storage_bytes ?? 0),
+      diagnosticOptIn: Boolean(row.ai_diagnostic_opt_in),
     },
   };
 }
@@ -41,7 +42,7 @@ function mappedUser(row) {
 export async function adminUsers(env) {
   const rows = await env.DB.prepare(
     `SELECT a.id, a.display_name, a.status, a.status_reason, a.role, a.created_at,
-            a.ai_reputation, c.login_name, u.document_json AS settings_json,
+            a.ai_reputation, a.ai_diagnostic_opt_in, c.login_name, u.document_json AS settings_json,
             u.revision AS settings_revision, cal.revision AS calendar_revision,
             rc.created_at AS recovery_created_at, rc.used_at AS recovery_used_at,
             EXISTS(SELECT 1 FROM credential_secrets s WHERE s.account_id=a.id AND s.secret_kind='bjmf_cookie') AS cookie_stored,
@@ -70,7 +71,7 @@ export async function adminUserDetail(env, accountId) {
   if (!/^[0-9a-f-]{36}$/i.test(accountId)) throw new Error("Invalid account ID");
   const user = (await adminUsers(env)).find((item) => item.id === accountId);
   if (!user) throw new Error("User not found");
-  const [logs, scores] = await Promise.all([
+  const [logs, scores, messages] = await Promise.all([
     env.DB.prepare(
       `SELECT class_id, task_id, outcome, result_text, source, attempted_at
          FROM attendance_logs WHERE account_id=? ORDER BY attempted_at DESC LIMIT 45`,
@@ -80,8 +81,14 @@ export async function adminUserDetail(env, accountId) {
          FROM ai_usage_events WHERE account_id=? AND score IS NOT NULL
         ORDER BY created_at DESC LIMIT 30`,
     ).bind(accountId).all(),
+    user.ai.diagnosticOptIn
+      ? env.DB.prepare(
+        `SELECT role, content, created_at FROM ai_messages WHERE account_id=?
+         ORDER BY created_at DESC, rowid DESC LIMIT 10`,
+      ).bind(accountId).all()
+      : Promise.resolve({ results: [] }),
   ]);
-  return { user, logs: logs.results ?? [], aiScores: scores.results ?? [] };
+  return { user, logs: logs.results ?? [], aiScores: scores.results ?? [], aiMessages: (messages.results ?? []).reverse() };
 }
 
 export async function revealRecoveryCode(env, adminId, accountId) {

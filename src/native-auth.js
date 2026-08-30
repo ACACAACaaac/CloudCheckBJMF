@@ -217,7 +217,7 @@ export async function accountFromSession(request, env) {
   const tokenHash = await sha256(token);
   const account = await env.DB.prepare(
     `SELECT a.id, a.display_name, a.status, a.role, a.ai_reputation,
-            a.status_reason, c.login_name
+            a.status_reason, a.ai_diagnostic_opt_in, c.login_name
        FROM sessions s
        JOIN accounts a ON a.id = s.account_id
        JOIN auth_credentials c ON c.account_id = a.id

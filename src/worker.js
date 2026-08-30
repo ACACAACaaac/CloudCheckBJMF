@@ -16,7 +16,7 @@ import {
 } from "./admin.js";
 import {
   acceptVisionLicense, aiConversation, clearAiConversation, deployAiCalendar, discardAiCalendar,
-  saveAiContext, saveAiMemory, sendAiMessage, stopAiTurn,
+  resetAiContext, saveAiContext, saveAiMemory, sendAiMessage, setAiDiagnosticOptIn, stopAiTurn,
 } from "./ai-chat.js";
 import { K8nGateway } from "./k8n-gateway.js";
 import { processDueReads, reconcileSchedules } from "./scheduler.js";
@@ -386,6 +386,13 @@ async function handleAi(request, env, url) {
     if (url.pathname === "/api/ai/context" && request.method === "PUT") {
       const body = await requestJson(request);
       return json({ ok: true, ...(await saveAiContext(env, auth.account.id, body.context)) });
+    }
+    if (url.pathname === "/api/ai/context/reset" && request.method === "POST") {
+      return json({ ok: true, ...(await resetAiContext(env, auth.account.id)) });
+    }
+    if (url.pathname === "/api/ai/diagnostic-consent" && request.method === "PUT") {
+      const body = await requestJson(request);
+      return json({ ok: true, ...(await setAiDiagnosticOptIn(env, auth.account.id, body.enabled === true)) });
     }
     if (url.pathname === "/api/ai/chat" && request.method === "POST") {
       const body = await requestJson(request);

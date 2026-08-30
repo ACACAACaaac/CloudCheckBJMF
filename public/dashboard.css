@@ -302,6 +302,9 @@ input:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px r
 .ai-memory-box p { color: var(--muted); font-size: 11px; }
 .ai-memory-box textarea { min-height: 170px; }
 .ai-memory-actions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 9px; }
+.ai-context-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.diagnostic-consent { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.diagnostic-consent input { width: 16px; height: 16px; flex: 0 0 auto; }
 .settings-actions, .admin-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .settings-actions .button { flex: 1 1 180px; }
 .admin-actions { margin: 18px 0; padding-top: 14px; border-top: 1px solid var(--line); }
