@@ -375,6 +375,34 @@ const feedbackCategoryLabel = {
   bug: "功能异常", suggestion: "功能建议", question: "使用问题", other: "其他",
 };
 
+function appendFeedbackImages(card, item) {
+  if (!item.image_count) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "button soft";
+  button.textContent = `查看截图（${item.image_count}）`;
+  const gallery = document.createElement("div");
+  gallery.className = "feedback-images";
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const result = await api(`/api/feedback/${encodeURIComponent(item.id)}/images`);
+      gallery.replaceChildren(...result.images.map((src, index) => {
+        const details = document.createElement("details");
+        const summary = document.createElement("summary");
+        summary.textContent = `截图 ${index + 1}（点击展开）`;
+        const img = document.createElement("img");
+        img.src = src;
+        img.alt = `反馈截图 ${index + 1}`;
+        details.append(summary, img);
+        return details;
+      }));
+      button.remove();
+    } catch (error) { report(error.message, "error", "截图加载失败"); button.disabled = false; }
+  });
+  card.append(button, gallery);
+}
+
 async function loadAdminFeedback() {
   const result = await api("/api/admin/feedback");
   const target = $("#admin-feedback");
@@ -414,6 +442,7 @@ async function loadAdminFeedback() {
       replyTime.textContent = `上次回复：${formatShanghai(item.admin_reply_at)}`;
       card.append(title, meta, content, replyTime, reply, send);
     } else card.append(title, meta, content, reply, send);
+    appendFeedbackImages(card, item);
     return card;
   }));
 }
@@ -430,6 +459,7 @@ async function loadMyFeedback() {
     const content = document.createElement("p");
     content.textContent = item.content;
     card.append(title, content);
+    appendFeedbackImages(card, item);
     if (item.admin_reply) {
       const reply = document.createElement("p");
       reply.className = "feedback-reply";
@@ -749,8 +779,63 @@ $("#admin-detail").addEventListener("click", async (event) => {
   } catch (error) { report(error.message, "error"); }
 });
 
+let feedbackImageData = [];
+let feedbackImagesBusy = false;
+
+function renderFeedbackImagePreview() {
+  $("#feedback-image-preview").replaceChildren(...feedbackImageData.map((src, index) => {
+    const figure = document.createElement("figure");
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = `待提交截图 ${index + 1}`;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "移除";
+    remove.addEventListener("click", () => { feedbackImageData.splice(index, 1); renderFeedbackImagePreview(); });
+    figure.append(img, remove);
+    return figure;
+  }));
+}
+
+async function addFeedbackImages(files) {
+  if (feedbackImagesBusy) return;
+  feedbackImagesBusy = true;
+  try {
+    for (const file of files) {
+      if (feedbackImageData.length >= 3) throw new Error("最多添加 3 张截图");
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 15 * 1024 * 1024) throw new Error("请选择 15MB 以内的 PNG、JPEG 或 WebP 图片");
+      const bitmap = await createImageBitmap(file);
+      const canvas = document.createElement("canvas");
+      const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      let src;
+      for (const quality of [0.85, 0.7, 0.5, 0.3]) {
+        src = canvas.toDataURL("image/jpeg", quality);
+        if (src.length <= 280000) break;
+      }
+      if (src.length > 280000) throw new Error("截图内容过大，请裁剪后再上传");
+      feedbackImageData.push(src);
+      renderFeedbackImagePreview();
+    }
+  } catch (error) { report(error.message, "error", "截图添加失败"); }
+  finally { feedbackImagesBusy = false; $("#feedback-images").value = ""; }
+}
+
+$("#feedback-images").addEventListener("change", (event) => addFeedbackImages([...event.target.files]));
+$("#feedback-content").addEventListener("paste", (event) => {
+  const files = [...(event.clipboardData?.files ?? [])].filter((file) => file.type.startsWith("image/"));
+  if (files.length) { event.preventDefault(); addFeedbackImages(files); }
+});
+
 $("#feedback-form").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (feedbackImagesBusy) { report("图片处理中，请稍候再提交。", "error"); return; }
   const form = event.currentTarget;
   const button = event.submitter;
   button.disabled = true;
@@ -762,9 +847,12 @@ $("#feedback-form").addEventListener("submit", async (event) => {
         category: $("#feedback-category").value,
         subject: $("#feedback-subject").value,
         content: $("#feedback-content").value,
+        images: feedbackImageData,
       }),
     });
     form.reset();
+    feedbackImageData = [];
+    renderFeedbackImagePreview();
     await loadMyFeedback();
     report("反馈已提交，管理员会在后台看到你的说明。", "success", "反馈已收到");
   } catch (error) { report(error.message, "error", "反馈提交失败"); }

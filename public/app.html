@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="班级魔方自动签到：轮询、课程日历、签到日志和消息提醒。">
     <title>班级魔方自动签到</title>
-    <link rel="stylesheet" href="/dashboard.css?v=20260830-2">
+    <link rel="stylesheet" href="/dashboard.css?v=20260905-1">
     <script src="/calendar-ui.js?v=20260830-2" defer></script>
-    <script src="/dashboard.js?v=20260830-2" defer></script>
+    <script src="/dashboard.js?v=20260905-1" defer></script>
   </head>
   <body>
     <section class="auth-gate" id="auth-gate">
@@ -231,6 +231,9 @@
             <label>分类<select id="feedback-category"><option value="bug">功能异常</option><option value="suggestion">功能建议</option><option value="question">使用问题</option><option value="other">其他</option></select></label>
             <label>标题<input id="feedback-subject" maxlength="120" required placeholder="例如：扫码后一直没有获得 Cookie"></label>
             <label>详细说明<textarea id="feedback-content" maxlength="2000" required placeholder="请说明操作步骤、出现的提示，以及大概发生时间。"></textarea></label>
+            <label>添加截图<input id="feedback-images" type="file" accept="image/png,image/jpeg,image/webp" multiple></label>
+            <p>最多 3 张，支持在说明框内粘贴截图。图片会自动压缩，请先遮盖截图中的密码等私密信息。</p>
+            <div id="feedback-image-preview" class="feedback-images"></div>
             <button class="button primary" type="submit">提交反馈</button>
           </form>
           <section class="my-feedback-section">

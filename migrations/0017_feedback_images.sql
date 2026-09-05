@@ -1,0 +1,1 @@
+ALTER TABLE feedback ADD COLUMN images_json TEXT NOT NULL DEFAULT '[]';

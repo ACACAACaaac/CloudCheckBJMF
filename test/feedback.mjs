@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { replyFeedback, submitFeedback } from "../src/feedback.js";
+import { feedbackImages, validateFeedbackImages, replyFeedback, submitFeedback } from "../src/feedback.js";
 
 const writes = [];
 const env = {
@@ -31,3 +31,16 @@ await replyFeedback(env, "feedback", { reply: "已收到，会处理。" });
 assert.equal(writes.length, 2);
 assert.equal(writes[1].values[0], "已收到，会处理。");
 console.log("feedback validation suite passed");
+assert.deepEqual(validateFeedbackImages(), []);
+assert.throws(() => validateFeedbackImages(Array(4).fill("")), /最多/);
+assert.throws(() => validateFeedbackImages(["data:image/svg+xml;base64,abcd"]), /格式/);
+assert.throws(() => validateFeedbackImages(["data:image/jpeg;base64,/9j/" + "A".repeat(280000)]), /大小/);
+const accessEnv = { DB: { prepare(sql) {
+  assert.match(sql, /account_id=\? OR \?='admin'/);
+  return { bind(id, accountId, role) { return { first: async () =>
+    id === "feedback" && (accountId === "owner" || role === "admin") ? { images_json: '[]' } : null,
+  }; } };
+} } };
+assert.equal(await feedbackImages(accessEnv, { id: "other", role: "user" }, "feedback"), null);
+assert.deepEqual(await feedbackImages(accessEnv, { id: "owner", role: "user" }, "feedback"), []);
+assert.deepEqual(await feedbackImages(accessEnv, { id: "other", role: "admin" }, "feedback"), []);

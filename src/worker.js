@@ -10,7 +10,7 @@ import {
 } from "./native-auth.js";
 import { inspectClassTasks, recentObservations } from "./read-only.js";
 import { executeAttendanceOnce, recentAttendanceLogs, testPushplus } from "./attendance.js";
-import { adminFeedback, replyFeedback, submitFeedback, userFeedback } from "./feedback.js";
+import { adminFeedback, feedbackImages, replyFeedback, submitFeedback, userFeedback } from "./feedback.js";
 import {
   adminUserDetail, adminUsers, deleteAdminUser, revealRecoveryCode, setAdminUserStatus,
 } from "./admin.js";
@@ -543,6 +543,16 @@ export default {
       return json({ ok: true, logs: await recentAttendanceLogs(env, auth.account.id) });
     }
 
+    const feedbackImageMatch = /^\/api\/feedback\/([0-9a-f-]{36})\/images$/i.exec(url.pathname);
+    if (feedbackImageMatch) {
+      const auth = await authenticatedAccount(request, env);
+      if (auth.response) return auth.response;
+      if (request.method !== "GET") return json({ ok: false }, 405);
+      const images = await feedbackImages(env, auth.account, feedbackImageMatch[1]);
+      return new Response(JSON.stringify(images ? { ok: true, images } : { ok: false, error: "反馈不存在" }), {
+        status: images ? 200 : 404, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
     if (url.pathname === "/api/feedback") return handleFeedback(request, env);
 
     if (url.pathname.startsWith("/api/admin/")) return handleAdmin(request, env, url);

@@ -303,6 +303,10 @@ input:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px r
 .ai-memory-box textarea { min-height: 170px; }
 .ai-memory-actions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 9px; }
 .ai-context-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.feedback-images { display: flex; gap: 12px; flex-wrap: wrap; }
+.feedback-images figure { margin: 0; max-width: 100%; }
+.feedback-images img { display: block; max-width: 100%; width: 180px; height: 140px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; }
+.feedback-images details[open] img { width: auto; height: auto; max-height: none; }
 .diagnostic-consent { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .diagnostic-consent input { width: 16px; height: 16px; flex: 0 0 auto; }
 .settings-actions, .admin-actions { display: flex; flex-wrap: wrap; gap: 10px; }
