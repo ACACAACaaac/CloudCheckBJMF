@@ -266,6 +266,8 @@ async function handleAttendanceRun(request, env) {
   try {
     const body = await requestJson(request);
     if (body.confirm !== true) return json({ ok: false, error: "Explicit confirmation is required" }, 400);
+    try { await refreshDetectedClasses(env, auth.account.id); }
+    catch (error) { console.warn("manual class refresh failed", auth.account.id, error); }
     return json({ ok: true, ...(await executeAttendanceForAllClasses(env, auth.account.id, { source: "manual" })) });
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : "Attendance run failed" }, 400);
@@ -519,14 +521,6 @@ export default {
 
     if (url.pathname === "/api/login/poll") {
       return handleLoginPoll(request, env, url);
-    }
-
-    if (url.pathname === "/api/classes/refresh") {
-      const auth = await authenticatedAccount(request, env);
-      if (auth.response) return auth.response;
-      if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
-      try { return json({ ok: true, ...(await refreshDetectedClasses(env, auth.account.id)) }); }
-      catch (error) { return json({ ok: false, error: error instanceof Error ? error.message : "班级识别失败" }, 400); }
     }
 
     if (url.pathname === "/api/read-only/check") {

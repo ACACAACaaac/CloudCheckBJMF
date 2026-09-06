@@ -1,5 +1,6 @@
 import { inspectClassTasks } from "./read-only.js";
 import { executeAttendanceOnce } from "./attendance.js";
+import { refreshDetectedClasses } from "./cookie-login.js";
 
 const SHANGHAI_OFFSET = "+08:00";
 const DAY_MS = 86_400_000;
@@ -186,6 +187,12 @@ export async function processDueReads(env) {
       ORDER BY next_read_at LIMIT 20`,
   ).bind(new Date(Date.now() + 2_000).toISOString()).all();
   for (const row of due.results ?? []) {
+    try {
+      await refreshDetectedClasses(env, row.account_id);
+    } catch (error) {
+      // Keep the last known classes when the upstream student page is temporarily unavailable.
+      console.warn("scheduled class refresh failed", row.account_id, error);
+    }
     const documents = await accountDocuments(env, row.account_id);
     if (!documents) continue;
     const results = [];

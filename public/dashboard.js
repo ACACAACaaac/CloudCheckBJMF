@@ -1093,17 +1093,6 @@ $("#run-check").addEventListener("click", async () => {
   } catch (error) { report(error.message, "error", "签到检查失败"); }
 });
 
-$("#refresh-classes").addEventListener("click", async (event) => {
-  const button = event.currentTarget;
-  button.disabled = true;
-  try {
-    const result = await api("/api/classes/refresh", { method: "POST" });
-    await loadData();
-    report(`已重新识别班级：${result.classIds.join("、")}`, "success", "班级已同步");
-  } catch (error) { report(error.message, "error", "班级识别失败"); }
-  finally { button.disabled = false; }
-});
-
 function addAiFiles(files) {
   const accepted = [...files].filter((file) => file.type.startsWith("image/") || /\.(txt|csv|json|ics)$/i.test(file.name));
   for (const file of accepted) {

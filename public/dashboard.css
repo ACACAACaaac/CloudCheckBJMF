@@ -309,7 +309,6 @@ input:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px r
 .feedback-images details[open] img { width: auto; height: auto; max-height: none; }
 .diagnostic-consent { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .diagnostic-consent input { width: 16px; height: 16px; flex: 0 0 auto; }
-.text-button { margin-left: 7px; padding: 0; border: 0; color: var(--blue); background: transparent; font: inherit; font-size: 11px; cursor: pointer; }
 .settings-actions, .admin-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .settings-actions .button { flex: 1 1 180px; }
 .admin-actions { margin: 18px 0; padding-top: 14px; border-top: 1px solid var(--line); }
