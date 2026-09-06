@@ -1,7 +1,7 @@
 import QRCode from "qrcode";
 import { calendarToRules } from "./calendar-rules.js";
 import { fetchK8n } from "./k8n-gateway.js";
-import { decryptSecret, encryptSecret, saveSecret } from "./secure-data.js";
+import { decryptSecret, encryptSecret, loadSecret, saveSecret } from "./secure-data.js";
 
 const QR_PAGE_URL = "https://k8n.cn/login/qr/weixin/student/2";
 const REMEMBER_COOKIE = "remember_student_59ba36addc2b2f9401580f014c7f58ea4e30989d";
@@ -188,6 +188,17 @@ async function saveDetectedClasses(env, accountId, classIds) {
        rules_text=excluded.rules_text, updated_at=CURRENT_TIMESTAMP`,
     ).bind(accountId, calendarToRules(calendar, credential.login_name)),
   ]);
+}
+
+export async function refreshDetectedClasses(env, accountId) {
+  const cookie = await loadSecret(env, accountId, "bjmf_cookie");
+  if (!cookie) throw new Error("尚未保存 Cookie，请先扫码登录");
+  const separator = cookie.indexOf("=");
+  if (separator < 1) throw new Error("Cookie 格式无效，请重新扫码登录");
+  const classIds = await discoverClassIds(env, new Map([[cookie.slice(0, separator), cookie.slice(separator + 1)]]));
+  if (!classIds.length) throw new Error("暂未在班级魔方学生主页找到班级，请稍后重试或重新扫码登录");
+  await saveDetectedClasses(env, accountId, classIds);
+  return { classIds };
 }
 
 export async function startCookieLogin(env, accountId) {

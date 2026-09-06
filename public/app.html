@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="班级魔方自动签到：轮询、课程日历、签到日志和消息提醒。">
     <title>班级魔方自动签到</title>
-    <link rel="stylesheet" href="/dashboard.css?v=20260905-1">
+    <link rel="stylesheet" href="/dashboard.css?v=20260906-1">
     <script src="/calendar-ui.js?v=20260830-2" defer></script>
-    <script src="/dashboard.js?v=20260905-1" defer></script>
+    <script src="/dashboard.js?v=20260906-1" defer></script>
   </head>
   <body>
     <section class="auth-gate" id="auth-gate">
@@ -78,7 +78,7 @@
           </div>
           <div class="identity-summary">
             <div><small>当前账户</small><strong id="profile-account">正在读取</strong></div>
-            <div><small>自动识别班级</small><strong id="profile-classes">扫码后自动获取</strong></div>
+            <div><small>自动识别班级</small><strong id="profile-classes">扫码后自动获取</strong><button id="refresh-classes" class="text-button" type="button">重新识别</button></div>
             <div><small>用户状态</small><strong id="profile-status">正在读取</strong></div>
           </div>
           <p class="panel-help">班级会在扫码登录后自动识别。保存设置并启动签到后，云端才会按时间执行。</p>

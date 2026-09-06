@@ -176,6 +176,30 @@ export async function executeAttendanceOnce(env, accountId, options = {}) {
   return { outcome: results.some((item) => item.outcome === "failure") ? "failure" : "success", classId, taskIds, results };
 }
 
+export async function executeAttendanceForAllClasses(env, accountId, options = {}) {
+  const { settings } = await documents(env, accountId);
+  const classIds = [...new Set((settings.classes ?? []).map(String).filter(validClassId))];
+  if (!classIds.length) throw new Error("尚未识别有效班级，请先完成扫码登录或重新识别班级");
+  const classResults = [];
+  for (const classId of classIds) {
+    try {
+      classResults.push(await executeAttendanceOnce(env, accountId, { ...options, classId }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "读取班级任务失败";
+      await record(env, accountId, { classId, outcome: "failure", resultText: message, source: options.source });
+      classResults.push({ classId, outcome: "failure", taskIds: [], results: [], message });
+    }
+  }
+  const taskIds = classResults.flatMap((result) => result.taskIds ?? []);
+  const results = classResults.flatMap((result) => result.results ?? []);
+  const outcome = classResults.some((result) => result.outcome === "failure")
+    ? "failure"
+    : classResults.some((result) => ["task_found", "success"].includes(result.outcome))
+      ? "task_found"
+      : "no_task";
+  return { outcome, classIds, taskIds, results, classResults };
+}
+
 export async function recentAttendanceLogs(env, accountId) {
   const result = {};
   for (const outcome of ["success", "failure", "no_task"]) {

@@ -982,16 +982,15 @@ $("#start-attendance").addEventListener("click", async () => {
       report("签到已停止，定时轮询不会继续提交签到。", "success", "签到已停止");
       return;
     }
-    const classId = state.settingsDocument.classes?.[0];
     if (!state.cookieStored) throw new Error("尚未保存 Cookie，请先扫码登录");
-    if (!classId) throw new Error("尚未识别班级，请先完成扫码登录");
+    if (!state.settingsDocument.classes?.length) throw new Error("尚未识别班级，请先完成扫码登录");
     if (!$("#default-location").value) throw new Error("请先选择默认轮询坐标组");
     state.attendanceRunning = true;
     await saveCurrentSettings();
     renderAttendanceControl();
     const result = await api("/api/attendance/run", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ classId, confirm: true }),
+      body: JSON.stringify({ confirm: true }),
     });
     const message = result.outcome === "no_task"
       ? "签到已启动。检查完成：当前没有签到任务。"
@@ -1078,12 +1077,11 @@ $("#start-login").addEventListener("click", async () => {
 
 $("#run-check").addEventListener("click", async () => {
   try {
-    const classId = state.settingsDocument.classes?.[0];
-    if (!classId) throw new Error("尚未识别班级，请先完成扫码登录");
+    if (!state.settingsDocument.classes?.length) throw new Error("尚未识别班级，请先完成扫码登录");
     const result = await api("/api/attendance/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ classId, confirm: true }),
+      body: JSON.stringify({ confirm: true }),
     });
     const message = result.writeBlocked
       ? `发现 ${result.taskIds.length} 个任务，但“允许实际签到”未开启，因此没有提交。`
@@ -1093,6 +1091,17 @@ $("#run-check").addEventListener("click", async () => {
     report(message, result.outcome === "failure" ? "error" : "success", "签到检查结果");
     renderAttendanceLogs((await api("/api/attendance/logs")).logs);
   } catch (error) { report(error.message, "error", "签到检查失败"); }
+});
+
+$("#refresh-classes").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    const result = await api("/api/classes/refresh", { method: "POST" });
+    await loadData();
+    report(`已重新识别班级：${result.classIds.join("、")}`, "success", "班级已同步");
+  } catch (error) { report(error.message, "error", "班级识别失败"); }
+  finally { button.disabled = false; }
 });
 
 function addAiFiles(files) {
