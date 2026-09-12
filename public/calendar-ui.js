@@ -32,6 +32,25 @@
     return `${prefix}-${Date.now()}-${crypto.getRandomValues(new Uint32Array(1))[0]}`;
   }
 
+  function normalizeCourseIds(courses) {
+    const used = new Set();
+    courses.forEach((course, index) => {
+      if (!course || typeof course !== "object" || Array.isArray(course)) {
+        courses[index] = { name: String(course ?? "").trim() || `课程 ${index + 1}`, location_group: "" };
+      }
+      const target = courses[index];
+      const existing = String(target.id ?? "").trim();
+      let id = existing && !used.has(existing) ? existing : `legacy-course-${index + 1}`;
+      let suffix = 2;
+      while (used.has(id)) {
+        id = `legacy-course-${index + 1}-${suffix}`;
+        suffix += 1;
+      }
+      target.id = id;
+      used.add(id);
+    });
+  }
+
   function clamp(value, minimum, maximum) {
     return Math.min(maximum, Math.max(minimum, value));
   }
@@ -382,6 +401,7 @@
       }
       if (user) {
         user.courses = Array.isArray(user.courses) ? user.courses : [];
+        normalizeCourseIds(user.courses);
         user.single_tasks = Array.isArray(user.single_tasks) ? user.single_tasks : [];
         user.repeat_tasks = Array.isArray(user.repeat_tasks) ? user.repeat_tasks : [];
         user.window_minutes = Number(user.window_minutes ?? 20);

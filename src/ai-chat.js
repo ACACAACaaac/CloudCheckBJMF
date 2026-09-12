@@ -110,9 +110,17 @@ async function recentRows(env, accountId, limit = MESSAGE_LIMIT) {
 }
 
 async function calendarContext(env, accountId) {
-  const document = await readDocument(env, accountId, "calendar");
   const account = await env.DB.prepare("SELECT display_name FROM accounts WHERE id=?").bind(accountId).first();
   const username = account?.display_name ?? "当前用户";
+  let document = await readDocument(env, accountId, "calendar");
+
+  // Older calendar documents did not always assign a course ID. Each missing ID
+  // used to collapse into the same "undefined" AI-context field on the client.
+  if (normalizeLegacyCourseIds(document.document, username)) {
+    const saved = await writeDocument(env, accountId, "calendar", document.document, document.revision);
+    if (!saved.conflict) document = saved;
+  }
+
   let row = await env.DB.prepare("SELECT rules_text FROM calendar_rule_documents WHERE account_id=?").bind(accountId).first();
   if (!row) {
     const rulesText = calendarToRules(document.document, username);
@@ -129,10 +137,54 @@ function currentCalendarUser(calendar, username) {
   return matches.length === 1 ? matches[0] : null;
 }
 
+function legacyCourseId(usedIds, index) {
+  const base = `legacy-course-${index + 1}`;
+  let candidate = base;
+  let suffix = 2;
+  while (usedIds.has(candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
+export function normalizeLegacyCourseIds(calendar, username) {
+  const user = currentCalendarUser(calendar, username);
+  if (!user) return false;
+  if (!Array.isArray(user.courses)) {
+    user.courses = [];
+    return true;
+  }
+
+  const usedIds = new Set();
+  let changed = false;
+  for (const [index, original] of user.courses.entries()) {
+    let course = original;
+    if (!course || typeof course !== "object" || Array.isArray(course)) {
+      course = { name: cleanLine(course) || `课程 ${index + 1}`, location_group: "" };
+      user.courses[index] = course;
+      changed = true;
+    }
+    const existingId = cleanLine(course.id, 120);
+    const id = existingId && !usedIds.has(existingId)
+      ? existingId
+      : legacyCourseId(usedIds, index);
+    if (course.id !== id) {
+      course.id = id;
+      changed = true;
+    }
+    usedIds.add(id);
+  }
+  return changed;
+}
+
 function contextRequirements(calendar, username, context = {}) {
   const user = currentCalendarUser(calendar, username);
   const locations = (calendar.locations ?? []).map((item) => String(item.name));
-  const courses = (user?.courses ?? []).map((item) => ({ id: String(item.id), name: String(item.name) }));
+  const courses = (user?.courses ?? []).map((item, index) => ({
+    id: cleanLine(item?.id, 120) || `legacy-course-${index + 1}`,
+    name: cleanLine(item?.name, 200) || `课程 ${index + 1}`,
+  }));
   const normalized = {
     college: cleanLine(context.college, 200),
     locations: Object.fromEntries(locations.map((name) => [name, cleanLine(context.locations?.[name])])),

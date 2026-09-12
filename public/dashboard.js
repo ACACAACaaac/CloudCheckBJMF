@@ -662,7 +662,18 @@ function renderAiContext(context = {}) {
   const fields = $("#ai-context-fields");
   const rows = [];
   for (const location of context.locations ?? []) rows.push({ kind: "location", key: location.name, label: `坐标 · ${location.name}`, value: location.description, placeholder: "这里通常发生什么签到或活动？" });
-  for (const course of context.courses ?? []) rows.push({ kind: "course", key: course.id, label: `课程 · ${course.name}`, value: course.description, placeholder: "课程昵称、常见叫法或其他提示" });
+  const courseKeys = new Set();
+  for (const [index, course] of (context.courses ?? []).entries()) {
+    const existingKey = String(course.id ?? "").trim();
+    let key = existingKey && !courseKeys.has(existingKey) ? existingKey : `legacy-course-${index + 1}`;
+    let suffix = 2;
+    while (courseKeys.has(key)) {
+      key = `legacy-course-${index + 1}-${suffix}`;
+      suffix += 1;
+    }
+    courseKeys.add(key);
+    rows.push({ kind: "course", key, label: `课程 · ${course.name}`, value: course.description, placeholder: "课程昵称、常见叫法或其他提示" });
+  }
   fields.replaceChildren(...rows.map((row) => {
     const label = document.createElement("label");
     label.textContent = row.label;
