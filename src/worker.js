@@ -201,7 +201,7 @@ async function handleCalendarImport(request, env, action) {
   try {
     const body = await requestJson(request);
     if (action === "preview") {
-      const draft = parseCalendarImport({ source: body.source, text: body.text, term: body.term });
+      const draft = parseCalendarImport({ source: body.source, text: body.text, binary: body.binary, term: body.term });
       return json({ ok: true, draft });
     }
     const revision = Number(body.revision);

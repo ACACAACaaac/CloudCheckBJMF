@@ -918,15 +918,17 @@ function resetCalendarImportPreview() {
 
 function updateCalendarImportForm() {
   const source = $("#calendar-import-source").value;
-  const isFile = ["csv", "html", "ics", "image"].includes(source);
+  const isFile = ["csv", "xlsx", "html", "ics", "image"].includes(source);
   const isImage = source === "image";
   $("#calendar-import-text-label").hidden = isFile;
   $("#calendar-import-file-label").hidden = !isFile;
-  $("#calendar-import-file").accept = isImage ? "image/png,image/jpeg,image/webp" : source === "csv" ? ".csv,text/csv" : source === "html" ? ".html,.htm,text/html" : ".ics,text/calendar";
+  $("#calendar-import-file").accept = isImage ? "image/png,image/jpeg,image/webp" : source === "csv" ? ".csv,text/csv" : source === "xlsx" ? ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : source === "html" ? ".html,.htm,text/html" : ".ics,text/calendar";
   $("#calendar-import-help").textContent = isImage
     ? "截图会转交给现有 AI 助手识别，仍需你确认 AI 给出的日历改动；图片不会作为普通附件长期保存。"
     : source === "csv"
       ? "CSV 表头支持：课程名、星期、开始时间、地点、开始日期、结束日期。"
+      : source === "xlsx"
+        ? "Excel 会读取第一个工作表。表头支持：课程名、星期、开始时间、地点、开始日期、结束日期。"
       : source === "html"
         ? "从教务系统的个人课表页面“另存为 HTML”后选择文件；系统会提取可识别的文字行。"
         : source === "ics"
@@ -1036,15 +1038,21 @@ async function previewCalendarImport() {
     return;
   }
   let text = $("#calendar-import-text").value;
-  if (["csv", "html", "ics"].includes(source)) {
+  let binary = "";
+  if (["csv", "xlsx", "html", "ics"].includes(source)) {
     const file = $("#calendar-import-file").files[0];
     if (!file) throw new Error("请先选择文件");
     if (file.size > 2 * 1024 * 1024) throw new Error("文件不能超过 2 MB");
-    text = await file.text();
+    if (source === "xlsx") {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let encoded = "";
+      for (let offset = 0; offset < bytes.length; offset += 0x8000) encoded += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+      binary = btoa(encoded);
+    } else text = await file.text();
   }
   const result = await api("/api/calendar/import/preview", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ source, text, term: { startDate, endDate } }),
+    body: JSON.stringify({ source, text, binary, term: { startDate, endDate } }),
   });
   state.calendarImport = result.draft;
   if (!state.calendarImport.items.length) throw new Error(result.draft.warnings?.join("；") || "没有识别到可导入的课程");

@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="班级魔方自动签到：轮询、课程日历、签到日志和消息提醒。">
     <title>班级魔方自动签到</title>
-    <link rel="stylesheet" href="/dashboard.css?v=20260914-1">
+    <link rel="stylesheet" href="/dashboard.css?v=20260914-2">
     <script src="/calendar-ui.js?v=20260914-1" defer></script>
-    <script src="/dashboard.js?v=20260914-1" defer></script>
+    <script src="/dashboard.js?v=20260914-2" defer></script>
   </head>
   <body>
     <section class="auth-gate" id="auth-gate">
@@ -258,7 +258,7 @@
       <div class="import-dialog-head"><div><small>先预览，后写入</small><h3>导入课表</h3></div><button class="icon-close" id="close-calendar-import" type="button" aria-label="关闭">×</button></div>
       <p class="import-lead">导入结果会先显示在这里。确认后仅新增不重复的课程任务，已有日历不会被清空或覆盖。</p>
       <div class="import-form-grid">
-        <label>导入形式<select id="calendar-import-source"><option value="text">粘贴课表文字</option><option value="csv">CSV 文件</option><option value="html">HTML 课表文件</option><option value="ics">ICS 日历文件</option><option value="image">课表截图交给 AI</option></select></label>
+        <label>导入形式<select id="calendar-import-source"><option value="text">粘贴课表文字</option><option value="csv">CSV 文件</option><option value="xlsx">Excel 文件</option><option value="html">HTML 课表文件</option><option value="ics">ICS 日历文件</option><option value="image">课表截图交给 AI</option></select></label>
         <label>学期开始日期<input id="calendar-import-start" type="date"></label>
         <label>学期结束日期<input id="calendar-import-end" type="date"></label>
       </div>
