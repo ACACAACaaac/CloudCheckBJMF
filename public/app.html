@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="班级魔方自动签到：轮询、课程日历、签到日志和消息提醒。">
     <title>班级魔方自动签到</title>
-    <link rel="stylesheet" href="/dashboard.css?v=20260906-1">
-    <script src="/calendar-ui.js?v=20260830-2" defer></script>
-    <script src="/dashboard.js?v=20260906-1" defer></script>
+    <link rel="stylesheet" href="/dashboard.css?v=20260914-1">
+    <script src="/calendar-ui.js?v=20260914-1" defer></script>
+    <script src="/dashboard.js?v=20260914-1" defer></script>
   </head>
   <body>
     <section class="auth-gate" id="auth-gate">
@@ -126,6 +126,10 @@
             <span class="save-state" id="calendar-revision">尚未读取</span>
           </div>
           <p class="panel-help">在月历中安排课程、单次任务和重复任务，也可以让 AI 先生成一份待确认方案。</p>
+          <div class="calendar-import-callout">
+            <div><strong>有现成课表？不用一节一节敲。</strong><p>可从文字、CSV、HTML 或 ICS 生成预览；确认后只会新增任务，不会删除已有日历。</p></div>
+            <button id="open-calendar-import" class="button soft" type="button">导入课表</button>
+          </div>
           <div id="calendar-editor"></div>
           <div class="calendar-save-row">
             <button id="save-calendar" class="button primary">保存日历</button>
@@ -249,6 +253,20 @@
       <h3 id="operation-title">操作结果</h3>
       <p id="operation-message"></p>
       <button class="button primary" id="operation-close" type="button">知道了</button>
+    </dialog>
+    <dialog class="calendar-import-dialog" id="calendar-import-dialog">
+      <div class="import-dialog-head"><div><small>先预览，后写入</small><h3>导入课表</h3></div><button class="icon-close" id="close-calendar-import" type="button" aria-label="关闭">×</button></div>
+      <p class="import-lead">导入结果会先显示在这里。确认后仅新增不重复的课程任务，已有日历不会被清空或覆盖。</p>
+      <div class="import-form-grid">
+        <label>导入形式<select id="calendar-import-source"><option value="text">粘贴课表文字</option><option value="csv">CSV 文件</option><option value="html">HTML 课表文件</option><option value="ics">ICS 日历文件</option><option value="image">课表截图交给 AI</option></select></label>
+        <label>学期开始日期<input id="calendar-import-start" type="date"></label>
+        <label>学期结束日期<input id="calendar-import-end" type="date"></label>
+      </div>
+      <label id="calendar-import-text-label">课表内容<textarea id="calendar-import-text" maxlength="180000" placeholder="每行一节课，例如：高等数学｜周一、周三｜08:00｜E13"></textarea></label>
+      <label id="calendar-import-file-label" hidden>选择文件<input id="calendar-import-file" type="file" accept=".csv,.html,.htm,.ics,.txt,text/csv,text/html,text/calendar"></label>
+      <div class="import-help" id="calendar-import-help">支持“课程名｜周一、周三｜08:00｜地点”。地点只是提示，下一步请把它绑定到你已创建的坐标组。</div>
+      <div class="import-actions"><button id="preview-calendar-import" class="button primary" type="button">生成导入预览</button><button id="import-manage-locations" class="button soft" type="button">先管理坐标组</button></div>
+      <section id="calendar-import-preview" class="calendar-import-preview" hidden></section>
     </dialog>
   </body>
 </html>

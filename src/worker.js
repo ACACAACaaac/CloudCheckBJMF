@@ -1,5 +1,6 @@
 import { credentialStatus, pollCookieLogin, refreshDetectedClasses, startCookieLogin } from "./cookie-login.js";
 import { readDocument, writeDocument } from "./documents.js";
+import { appendImportedCalendar, parseCalendarImport } from "./calendar-import.js";
 import {
   accountFromSession,
   loginAccount,
@@ -190,6 +191,37 @@ async function handleDocumentRequest(request, env, kind) {
     return json({ ok: !result.conflict, ...result }, result.conflict ? 409 : 200);
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : "Invalid document" }, 400);
+  }
+}
+
+async function handleCalendarImport(request, env, action) {
+  const auth = await authenticatedAccount(request, env);
+  if (auth.response) return auth.response;
+  if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
+  try {
+    const body = await requestJson(request);
+    if (action === "preview") {
+      const draft = parseCalendarImport({ source: body.source, text: body.text, term: body.term });
+      return json({ ok: true, draft });
+    }
+    const revision = Number(body.revision);
+    if (!Number.isInteger(revision) || revision < 0) throw new Error("日历版本无效，请刷新后重试");
+    if (!Array.isArray(body.items) || !body.items.length || body.items.length > 300) {
+      throw new Error("请选择 1 到 300 项有效课程后再导入");
+    }
+    const current = await readDocument(env, auth.account.id, "calendar");
+    if (current.revision !== revision) {
+      return json({ ok: false, conflict: true, current, error: "日历已在其他页面更新，请刷新后重新预览" }, 409);
+    }
+    const result = appendImportedCalendar(current.document, auth.account, body.items);
+    if (!result.created.length) {
+      return json({ ok: true, imported: 0, skipped: result.skipped, document: current.document, revision: current.revision });
+    }
+    const saved = await writeDocument(env, auth.account.id, "calendar", result.document, current.revision);
+    if (saved.conflict) return json({ ok: false, ...saved, error: "日历版本冲突，请刷新后重试" }, 409);
+    return json({ ok: true, imported: result.created.length, skipped: result.skipped, document: saved.document, revision: saved.revision });
+  } catch (error) {
+    return json({ ok: false, error: error instanceof Error ? error.message : "课表导入失败" }, 400);
   }
 }
 
@@ -507,6 +539,14 @@ export default {
 
     if (url.pathname === "/api/documents/calendar") {
       return handleDocumentRequest(request, env, "calendar");
+    }
+
+    if (url.pathname === "/api/calendar/import/preview") {
+      return handleCalendarImport(request, env, "preview");
+    }
+
+    if (url.pathname === "/api/calendar/import/apply") {
+      return handleCalendarImport(request, env, "apply");
     }
 
     if (url.pathname === "/api/credentials") {

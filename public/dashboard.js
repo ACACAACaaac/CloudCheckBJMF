@@ -13,6 +13,7 @@ const state = {
   aiAbortController: null,
   aiProgressTimer: null,
   attendanceRunning: false,
+  calendarImport: null,
 };
 const $ = (selector) => document.querySelector(selector);
 const syncChannel = typeof BroadcastChannel === "function" ? new BroadcastChannel("autocheck-cloud-sync") : null;
@@ -897,6 +898,185 @@ async function persistCalendar() {
   return result;
 }
 
+function importDateDefaults() {
+  const today = new Date();
+  const start = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const end = `${today.getFullYear() + (today.getMonth() >= 6 ? 1 : 0)}-01-31`;
+  return { start, end };
+}
+
+function calendarImportLocations() {
+  return (state.calendarEditor.getDocument().locations ?? []).map((location) => location.name).filter(Boolean);
+}
+
+function resetCalendarImportPreview() {
+  state.calendarImport = null;
+  const preview = $("#calendar-import-preview");
+  preview.hidden = true;
+  preview.replaceChildren();
+}
+
+function updateCalendarImportForm() {
+  const source = $("#calendar-import-source").value;
+  const isFile = ["csv", "html", "ics", "image"].includes(source);
+  const isImage = source === "image";
+  $("#calendar-import-text-label").hidden = isFile;
+  $("#calendar-import-file-label").hidden = !isFile;
+  $("#calendar-import-file").accept = isImage ? "image/png,image/jpeg,image/webp" : source === "csv" ? ".csv,text/csv" : source === "html" ? ".html,.htm,text/html" : ".ics,text/calendar";
+  $("#calendar-import-help").textContent = isImage
+    ? "截图会转交给现有 AI 助手识别，仍需你确认 AI 给出的日历改动；图片不会作为普通附件长期保存。"
+    : source === "csv"
+      ? "CSV 表头支持：课程名、星期、开始时间、地点、开始日期、结束日期。"
+      : source === "html"
+        ? "从教务系统的个人课表页面“另存为 HTML”后选择文件；系统会提取可识别的文字行。"
+        : source === "ics"
+          ? "导入重复的 ICS 日历事件。ICS 中没有地点时，需要在预览里选择坐标组。"
+          : "支持“课程名｜周一、周三｜08:00｜地点”。地点只是提示，下一步请把它绑定到你已创建的坐标组。";
+  resetCalendarImportPreview();
+}
+
+function importField(label, value, type, callback) {
+  const field = document.createElement("label");
+  field.textContent = label;
+  const input = document.createElement("input");
+  input.type = type;
+  input.value = value ?? "";
+  input.addEventListener("input", () => callback(input.value));
+  field.append(input);
+  return field;
+}
+
+function renderCalendarImportPreview() {
+  const preview = $("#calendar-import-preview");
+  const draft = state.calendarImport;
+  preview.replaceChildren();
+  if (!draft) { preview.hidden = true; return; }
+  preview.hidden = false;
+  const title = document.createElement("div");
+  title.className = "import-preview-head";
+  const heading = document.createElement("strong");
+  heading.textContent = `识别到 ${draft.items.length} 项课程`;
+  const summary = document.createElement("span");
+  summary.textContent = "确认后只新增，不覆盖已有任务";
+  title.append(heading, summary);
+  preview.append(title);
+  if (draft.warnings?.length) {
+    const warning = document.createElement("p");
+    warning.className = "import-warning";
+    warning.textContent = draft.warnings.join("；");
+    preview.append(warning);
+  }
+  const locations = calendarImportLocations();
+  const list = document.createElement("div");
+  list.className = "import-preview-list";
+  draft.items.forEach((item, index) => {
+    const card = document.createElement("article");
+    card.className = `import-course-card${item.warnings?.length ? " has-warning" : ""}`;
+    const fields = document.createElement("div");
+    fields.className = "import-course-fields";
+    fields.append(
+      importField("课程", item.title, "text", (value) => { item.title = value.trim(); }),
+      importField("星期", item.weekdays.map((day) => `周${["一", "二", "三", "四", "五", "六", "日"][day - 1]}`).join("、"), "text", (value) => {
+        const map = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7 };
+        item.weekdays = [...new Set([...value.matchAll(/周([一二三四五六日天1-7])/g)].map((match) => map[match[1]] ?? Number(match[1])).filter(Boolean))];
+      }),
+      importField("时间", item.startTime, "time", (value) => { item.startTime = value; }),
+      importField("开始", item.startDate, "date", (value) => { item.startDate = value; }),
+      importField("结束", item.endDate, "date", (value) => { item.endDate = value; }),
+    );
+    const locationLabel = document.createElement("label");
+    locationLabel.textContent = item.locationHint ? `坐标组（识别地点：${item.locationHint}）` : "坐标组";
+    const select = document.createElement("select");
+    const blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = locations.length ? "请选择已有坐标组" : "请先创建坐标组";
+    select.append(blank);
+    locations.forEach((name) => {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      option.selected = item.locationGroup === name || (!item.locationGroup && item.locationHint === name);
+      select.append(option);
+    });
+    item.locationGroup = select.value;
+    select.addEventListener("change", () => { item.locationGroup = select.value; });
+    locationLabel.append(select);
+    fields.append(locationLabel);
+    card.append(fields);
+    if (item.warnings?.length) {
+      const warning = document.createElement("small");
+      warning.textContent = item.warnings.join("；");
+      card.append(warning);
+    }
+    list.append(card);
+  });
+  preview.append(list);
+  const apply = document.createElement("button");
+  apply.className = "button primary";
+  apply.type = "button";
+  apply.textContent = "确认导入到打卡日历";
+  apply.addEventListener("click", applyCalendarImport);
+  preview.append(apply);
+}
+
+async function previewCalendarImport() {
+  if (state.calendarDirty) throw new Error("当前日历还有未保存的编辑，请先保存日历再导入，避免本地改动丢失");
+  const source = $("#calendar-import-source").value;
+  const startDate = $("#calendar-import-start").value;
+  const endDate = $("#calendar-import-end").value;
+  if (!startDate || !endDate || startDate > endDate) throw new Error("请填写正确的学期开始和结束日期");
+  if (source === "image") {
+    const file = $("#calendar-import-file").files[0];
+    if (!file) throw new Error("请先选择课表截图");
+    addAiFiles([file]);
+    $("#ai-message").value = "请识别这张课表截图，生成待确认的打卡日历。学期开始日期为：" + startDate + "；结束日期为：" + endDate + "。如地点无法匹配现有坐标组，请先向我提问。";
+    $("#calendar-import-dialog").close();
+    switchPanel("ai");
+    report("截图已交给 AI 助手。它会先给出待确认方案，不会直接修改日历。", "success", "已转交 AI 识别");
+    return;
+  }
+  let text = $("#calendar-import-text").value;
+  if (["csv", "html", "ics"].includes(source)) {
+    const file = $("#calendar-import-file").files[0];
+    if (!file) throw new Error("请先选择文件");
+    if (file.size > 2 * 1024 * 1024) throw new Error("文件不能超过 2 MB");
+    text = await file.text();
+  }
+  const result = await api("/api/calendar/import/preview", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source, text, term: { startDate, endDate } }),
+  });
+  state.calendarImport = result.draft;
+  if (!state.calendarImport.items.length) throw new Error(result.draft.warnings?.join("；") || "没有识别到可导入的课程");
+  renderCalendarImportPreview();
+}
+
+async function applyCalendarImport() {
+  const draft = state.calendarImport;
+  if (!draft?.items?.length) throw new Error("请先生成导入预览");
+  const result = await api("/api/calendar/import/apply", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ revision: state.calendarRevision, items: draft.items }),
+  });
+  state.calendarRevision = result.revision;
+  state.calendarEditor.setDocument(
+    result.document,
+    state.account?.login_name ?? state.account?.display_name ?? "当前用户",
+    state.settingsDocument.classes ?? [],
+  );
+  $("#calendar-json").value = JSON.stringify(result.document, null, 2);
+  $("#calendar-revision").textContent = "日历已同步";
+  $("#calendar-dirty").textContent = "导入结果已保存";
+  $("#calendar-dirty").classList.remove("dirty");
+  state.calendarDirty = false;
+  $("#calendar-import-dialog").close();
+  resetCalendarImportPreview();
+  await refreshAiConversation();
+  broadcastUpdate("calendar-import");
+  const skipped = result.skipped?.length ? `；跳过 ${result.skipped.length} 项重复或不完整课程` : "";
+  report(result.imported ? `已新增 ${result.imported} 项课程任务${skipped}。原有日历保持不变。` : `没有新增任务${skipped}。`, "success", "课表导入完成");
+}
+
 async function pollLogin(attemptId) {
   const result = await api(`/api/login/poll?id=${encodeURIComponent(attemptId)}`);
   if (result.status === "complete") {
@@ -1020,6 +1200,34 @@ $("#save-calendar").addEventListener("click", async () => {
     await persistCalendar();
     report("日历已保存，课表暂时没有反抗。", "success", "日历保存成功");
   } catch (error) { report(`日历没有保存：${error.message}`, "error"); }
+});
+
+$("#open-calendar-import").addEventListener("click", () => {
+  if (state.calendarDirty) {
+    report("请先保存当前日历编辑，再开始导入。这样不会丢掉还没保存的改动。", "error", "请先保存日历");
+    return;
+  }
+  const defaults = importDateDefaults();
+  if (!$("#calendar-import-start").value) $("#calendar-import-start").value = defaults.start;
+  if (!$("#calendar-import-end").value) $("#calendar-import-end").value = defaults.end;
+  updateCalendarImportForm();
+  const dialog = $("#calendar-import-dialog");
+  if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
+});
+
+$("#close-calendar-import").addEventListener("click", () => $("#calendar-import-dialog").close());
+$("#calendar-import-source").addEventListener("change", updateCalendarImportForm);
+$("#preview-calendar-import").addEventListener("click", async () => {
+  const button = $("#preview-calendar-import");
+  button.disabled = true;
+  try { await previewCalendarImport(); }
+  catch (error) { report(error.message, "error", "课表未导入"); }
+  finally { button.disabled = false; }
+});
+$("#import-manage-locations").addEventListener("click", () => {
+  $("#calendar-import-dialog").close();
+  state.calendarEditor.openLocations();
+  report("先创建或确认坐标组，关闭坐标组窗口后可再次打开导入课表。", "success", "请先准备坐标组");
 });
 
 $("#apply-calendar-json").addEventListener("click", () => {
