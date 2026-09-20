@@ -144,7 +144,9 @@ async function saveDetectedClasses(env, accountId, classIds) {
   ).bind(accountId).first();
   const settings = settingsRow ? JSON.parse(settingsRow.document_json) : {};
   settings.username = credential.login_name;
-  settings.classes = classIds;
+  // Discovery must not silently restore a class that the user removed from checks.
+  const excludedClasses = new Set((settings.excludedClasses ?? []).map(String));
+  settings.classes = classIds.filter((classId) => !excludedClasses.has(String(classId)));
   const nextSettingsRevision = Number(settingsRow?.revision ?? 0) + 1;
 
   const calendarRow = await env.DB.prepare(
@@ -166,7 +168,7 @@ async function saveDetectedClasses(env, accountId, classIds) {
     };
     calendar.users.push(calendarUser);
   }
-  calendarUser.classes = classIds;
+  calendarUser.classes = settings.classes;
   const nextCalendarRevision = Number(calendarRow?.revision ?? 0) + 1;
 
   await env.DB.batch([

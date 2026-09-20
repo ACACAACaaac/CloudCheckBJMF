@@ -290,6 +290,13 @@ function renderAttendanceControl() {
   button.classList.toggle("stop-button", state.attendanceRunning);
 }
 
+function renderManagedClasses(classes) {
+  const list = $("#managed-class-list");
+  list.innerHTML = classes.length
+    ? classes.map((classId) => `<button class="managed-class" type="button" data-remove-class="${String(classId)}" title="从自动检查中移除班级 ${String(classId)}">${String(classId)} <span aria-hidden="true">×</span></button>`).join("")
+    : "<span class=\"save-state\">暂无已识别班级</span>";
+}
+
 async function loadData() {
   const [settings, calendar, credentials, attendance, ai] = await Promise.all([
     api("/api/documents/settings"),
@@ -307,6 +314,7 @@ async function loadData() {
   $("#check-class-label").textContent = classes.length
     ? `将检查班级：${classes.join("、")}`
     : "扫码后自动识别班级";
+  renderManagedClasses(classes);
   state.calendarEditor.setDocument(
     calendar.document,
     state.account?.login_name ?? state.account?.display_name ?? "当前用户",
@@ -1150,6 +1158,32 @@ $("#polling-window-list").addEventListener("click", (event) => {
 });
 
 $("#manage-locations").addEventListener("click", () => state.calendarEditor.openLocations());
+
+$("#managed-class-list").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-remove-class]");
+  if (!button) return;
+  const classId = String(button.dataset.removeClass);
+  if (!confirm(`停止自动检查班级 ${classId}？这不会退出班级魔方中的真实班级。`)) return;
+  try {
+    const excluded = new Set((state.settingsDocument.excludedClasses ?? []).map(String));
+    excluded.add(classId);
+    state.settingsDocument = {
+      ...state.settingsDocument,
+      classes: (state.settingsDocument.classes ?? []).map(String).filter((item) => item !== classId),
+      excludedClasses: [...excluded],
+    };
+    await saveCurrentSettings();
+    renderManagedClasses(state.settingsDocument.classes);
+    $("#profile-classes").textContent = state.settingsDocument.classes.length
+      ? state.settingsDocument.classes.join("、") : "暂无自动检查班级";
+    $("#check-class-label").textContent = state.settingsDocument.classes.length
+      ? `将检查班级：${state.settingsDocument.classes.join("、")}` : "暂无自动检查班级";
+    report(`已停止自动检查班级 ${classId}。`, "success", "班级已移除");
+  } catch (error) {
+    await loadData();
+    report(error.message, "error", "移除班级失败");
+  }
+});
 
 async function saveCurrentSettings() {
   const result = await saveDocument("settings", settingsFromForm(), state.settingsRevision);

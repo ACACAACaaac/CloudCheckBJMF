@@ -29,6 +29,26 @@ async function documents(env, accountId) {
   };
 }
 
+async function attendanceStillEnabled(env, accountId) {
+  const row = await env.DB.prepare(
+    "SELECT document_json FROM user_documents WHERE account_id = ?",
+  ).bind(accountId).first();
+  if (!row?.document_json) return false;
+  const settings = JSON.parse(row.document_json);
+  return settings.enabled === true && settings.attendanceEnabled === true;
+}
+
+async function recentlyAttemptedByScheduler(env, accountId, classId, taskId) {
+  const row = await env.DB.prepare(
+    `SELECT id FROM attendance_logs
+      WHERE account_id = ? AND class_id = ? AND task_id = ?
+        AND source = 'scheduler'
+        AND attempted_at >= datetime('now', '-5 minutes')
+      LIMIT 1`,
+  ).bind(accountId, classId, taskId).first();
+  return Boolean(row);
+}
+
 function selectedLocation(settings, calendar) {
   const locations = Array.isArray(calendar.locations) ? calendar.locations : [];
   const preferred = settings.polling?.locationGroup;
@@ -125,7 +145,7 @@ export async function executeAttendanceOnce(env, accountId, options = {}) {
     await record(env, accountId, { classId, outcome: "no_task", resultText: "当前没有签到任务", source: options.source });
     return { outcome: "no_task", classId, taskIds: [], results: [] };
   }
-  if (settings.attendanceEnabled !== true) {
+  if (settings.enabled !== true || settings.attendanceEnabled !== true) {
     return { outcome: "task_found", classId, taskIds, results: [], writeBlocked: true };
   }
 
@@ -139,6 +159,15 @@ export async function executeAttendanceOnce(env, accountId, options = {}) {
     ).bind(accountId, classId, taskId).first();
     if (previous) {
       results.push({ taskId, outcome: "success", message: "该任务此前已签到，未重复提交" });
+      continue;
+    }
+    if (options.source === "scheduler" && await recentlyAttemptedByScheduler(env, accountId, classId, taskId)) {
+      results.push({ taskId, outcome: "task_found", message: "该任务刚刚已检查，等待下一轮后再尝试" });
+      continue;
+    }
+    // A task-list request can take seconds; honor Stop immediately before POST.
+    if (options.source === "scheduler" && !await attendanceStillEnabled(env, accountId)) {
+      results.push({ taskId, outcome: "task_found", message: "签到服务已停止，本次未提交" });
       continue;
     }
     const body = new URLSearchParams({
@@ -178,7 +207,9 @@ export async function executeAttendanceOnce(env, accountId, options = {}) {
 
 export async function executeAttendanceForAllClasses(env, accountId, options = {}) {
   const { settings } = await documents(env, accountId);
-  const classIds = [...new Set((settings.classes ?? []).map(String).filter(validClassId))];
+  const excluded = new Set((settings.excludedClasses ?? []).map(String));
+  const classIds = [...new Set((settings.classes ?? []).map(String)
+    .filter((classId) => validClassId(classId) && !excluded.has(classId)))];
   if (!classIds.length) throw new Error("尚未识别有效班级，请先完成扫码登录或重新识别班级");
   const classResults = [];
   for (const classId of classIds) {

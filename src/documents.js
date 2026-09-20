@@ -44,6 +44,13 @@ export async function writeDocument(env, accountId, kind, value, expectedRevisio
        revision = excluded.revision,
        updated_at = CURRENT_TIMESTAMP`,
   ).bind(accountId, encoded, nextRevision)];
+  // Stopping invalidates an already queued scheduler alarm immediately.
+  if (kind === "settings" && (value.enabled !== true || value.attendanceEnabled !== true)) {
+    writes.push(env.DB.prepare(
+      `UPDATE scheduler_state SET next_read_at = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE account_id = ?`,
+    ).bind(accountId));
+  }
   if (kind === "calendar") {
     if (current.revision > 0) {
       writes.push(env.DB.prepare(

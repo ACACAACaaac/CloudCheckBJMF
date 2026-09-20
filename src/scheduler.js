@@ -95,7 +95,8 @@ function ordinaryWindows(settings, date) {
 }
 
 export async function nextReadTarget(accountId, settings, calendar, after = new Date()) {
-  if (settings.enabled === false) return null;
+  // "停止签到" means no further cloud reads or submissions.
+  if (settings.enabled !== true || settings.attendanceEnabled !== true) return null;
   const intervalMinutes = Math.max(
     1,
     Number(settings.polling?.everyMinutes ?? settings.schedule?.every_minutes ?? 5),
@@ -187,6 +188,13 @@ export async function processDueReads(env) {
       ORDER BY next_read_at LIMIT 20`,
   ).bind(new Date(Date.now() + 2_000).toISOString()).all();
   for (const row of due.results ?? []) {
+    // Claim the due record before any network work. Delayed alarms and cron
+    // reconciliation must not process the same due time more than once.
+    const claim = await env.DB.prepare(
+      `UPDATE scheduler_state SET next_read_at = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE account_id = ? AND next_read_at IS NOT NULL AND next_read_at <= ?`,
+    ).bind(row.account_id, new Date(Date.now() + 2_000).toISOString()).run();
+    if (Number(claim.meta?.changes ?? 0) !== 1) continue;
     try {
       await refreshDetectedClasses(env, row.account_id);
     } catch (error) {
@@ -195,12 +203,17 @@ export async function processDueReads(env) {
     }
     const documents = await accountDocuments(env, row.account_id);
     if (!documents) continue;
+    // The user may have pressed Stop while this run was queued or refreshing classes.
+    if (documents.settings.enabled !== true || documents.settings.attendanceEnabled !== true) {
+      await saveNextTarget(env, row.account_id, null, "stopped");
+      continue;
+    }
     const results = [];
     for (const classId of documents.settings.classes ?? []) {
       try {
-        results.push(documents.settings.attendanceEnabled === true
-          ? await executeAttendanceOnce(env, row.account_id, { classId: String(classId), source: "scheduler" })
-          : await inspectClassTasks(env, row.account_id, String(classId)));
+        results.push(await executeAttendanceOnce(env, row.account_id, {
+          classId: String(classId), source: "scheduler",
+        }));
       } catch (error) {
         console.error("scheduled account run failed", row.account_id, classId, error);
         results.push({ outcome: "failure" });

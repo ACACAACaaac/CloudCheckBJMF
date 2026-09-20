@@ -116,6 +116,12 @@ input:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px r
 .identity-summary > div { padding: 14px 16px; display: grid; gap: 5px; border: 1px solid var(--line); border-radius: 15px; background: #f0f7ff; }
 .identity-summary small { color: var(--muted); font-size: 10px; }
 .identity-summary strong { font-size: 15px; }
+.managed-classes { margin: 0 0 14px; padding: 13px 15px; display: flex; justify-content: space-between; align-items: center; gap: 14px; border: 1px solid var(--line); border-radius: 15px; background: #f8fbfe; }
+.managed-classes strong { font-size: 13px; }
+.managed-classes p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.managed-class-list { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.managed-class { min-height: 34px; padding: 0 9px 0 11px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid #bfd8ef; border-radius: 999px; background: #eaf5ff; color: var(--blue-deep); font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.managed-class:hover { background: #fff1f1; border-color: #efc8c8; color: #9a3e45; }
 .class-readout { min-height: 46px; padding: 0 14px; display: flex; align-items: center; border: 1px solid var(--line); border-radius: 13px; background: #f7fbff; color: var(--muted); font-size: 12px; }
 
 .calendar-toolbar { margin: 20px 0 14px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
@@ -393,6 +399,8 @@ input:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px r
   .step { padding: 11px; }
   .step small { display: none; }
   .form-grid, .secret-box, .qr-stage, .identity-summary, .ai-quota-panel { grid-template-columns: 1fr; }
+  .managed-classes { align-items: stretch; flex-direction: column; }
+  .managed-class-list { justify-content: flex-start; }
   .feedback-form { grid-template-columns: 1fr; }
   .secret-editor, .secret-saved { align-items: stretch; flex-direction: column; }
   .secret-editor input, .secret-editor .button, .secret-saved .button { width: 100%; }
