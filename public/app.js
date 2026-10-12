@@ -27,12 +27,11 @@ async function checkHealth() {
     const response = await fetch("/api/health", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    healthLabel.dataset.health = data.ok ? "online" : "offline";
-    healthLabel.textContent = data.ok ? `云端在线 · ${data.colo ?? "--"}` : "服务异常";
-    databaseStatus.textContent = data.database?.ok ? "在线" : "未连接";
-    databaseDetail.textContent = data.database?.ok
-      ? `Schema ${data.database.schemaVersion ?? "unknown"}`
-      : "数据库迁移尚未就绪";
+    const online = data.status === "ok";
+    healthLabel.dataset.health = online ? "online" : "offline";
+    healthLabel.textContent = online ? "云端在线" : "服务异常";
+    databaseStatus.textContent = online ? "在线" : "未连接";
+    databaseDetail.textContent = online ? "服务运行正常" : "数据库迁移尚未就绪";
   } catch {
     healthLabel.dataset.health = "offline";
     healthLabel.textContent = "连接失败";

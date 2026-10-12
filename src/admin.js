@@ -94,10 +94,13 @@ export async function adminUserDetail(env, accountId) {
 export async function revealRecoveryCode(env, adminId, accountId) {
   if (!/^[0-9a-f-]{36}$/i.test(accountId)) throw new Error("Invalid account ID");
   const target = await env.DB.prepare(
-    `SELECT a.id, r.ciphertext, r.iv FROM accounts a
+    `SELECT a.id, a.role, r.ciphertext, r.iv FROM accounts a
        LEFT JOIN recovery_codes r ON r.account_id=a.id WHERE a.id=?`,
   ).bind(accountId).first();
   if (!target) throw new Error("User not found");
+  if (target.role === "admin" && target.id !== adminId) {
+    throw new Error("不能查看其他管理员的恢复密钥");
+  }
   if (!target.ciphertext || !target.iv) throw new Error("该账号创建时未加密保存恢复密钥，需要用户执行一次账号恢复以生成新密钥");
   const recoveryCode = await decryptSecret(env, accountId, "recovery_code", {
     ciphertext: target.ciphertext,

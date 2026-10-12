@@ -168,7 +168,7 @@
             <div><span>第四步</span><h2>AI 助手</h2></div>
             <div class="ai-title-actions"><span class="save-state" id="ai-model-state">正在连接 API</span><span class="save-state" id="ai-quota-state">读取额度</span><span class="save-state" id="ai-reputation-state">信誉 100</span><button class="button soft admin-only" id="probe-ai" hidden>测试 AI API</button></div>
           </div>
-          <p class="panel-help">把课表或一句人话丢进来，它会先生成易读的待确认清单；只有你点击确认部署后才写入日历。</p>
+          <p class="panel-help">把课表或一句人话丢进来，它会先生成易读的待确认清单；只有你点击确认部署后才写入日历。请不要在这里粘贴 Cookie、PushPlus Token 或任何 API Token。</p>
           <details class="ai-context-box" id="ai-context-box" open>
             <summary><span>使用前准备</span><small id="ai-context-state">正在检查学院、坐标与课程说明</small></summary>
             <p>这里是 AI 基础资料的唯一编辑处，会自动写入用户.md。不要在下方长期记忆中重复填写它们。</p>
@@ -262,7 +262,7 @@
       <div class="import-dialog-head"><div><small>先预览，后写入</small><h3>导入课表</h3></div><button class="icon-close" id="close-calendar-import" type="button" aria-label="关闭">×</button></div>
       <p class="import-lead">导入结果会先显示在这里。确认后仅新增不重复的课程任务，已有日历不会被清空或覆盖。</p>
       <div class="import-form-grid">
-        <label>导入形式<select id="calendar-import-source"><option value="text">粘贴课表文字</option><option value="csv">CSV 文件</option><option value="xlsx">Excel 文件</option><option value="html">HTML 课表文件</option><option value="ics">ICS 日历文件</option><option value="image">课表截图交给 AI</option></select></label>
+            <label>导入形式<select id="calendar-import-source"><option value="text">粘贴课表文字</option><option value="csv">CSV 文件</option><option value="html">HTML 课表文件</option><option value="ics">ICS 日历文件</option><option value="image">课表截图交给 AI</option></select></label>
         <label>学期开始日期<input id="calendar-import-start" type="date"></label>
         <label>学期结束日期<input id="calendar-import-end" type="date"></label>
       </div>

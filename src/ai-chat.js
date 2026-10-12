@@ -72,6 +72,12 @@ function cleanLine(value, limit = 500) {
   return String(value ?? "").replace(/[\r\n]+/g, " ").trim().slice(0, limit);
 }
 
+function containsCredential(value) {
+  const text = String(value ?? "");
+  return /remember_student_[a-z0-9]+=[^\s;&]{12,}/i.test(text)
+    || /(?:pushplus(?:\s*用户)?\s*token|(?:api|access)[_-]?token)\s*[:=]\s*[a-z0-9._-]{16,}/i.test(text);
+}
+
 function displayMessage(row) {
   const metadata = parseJson(row.metadata_json ?? "{}", {});
   const legacyDeployment = metadata.kind === "deployment"
@@ -1231,6 +1237,9 @@ export async function sendAiMessage(env, account, message, attachmentText = "", 
   const text = String(message ?? "").trim();
   const attachment = String(attachmentText ?? "").trim();
   if (!text && !attachment && !images?.length) throw new Error("请输入消息或添加图片、文本文件");
+  if (containsCredential(text) || containsCredential(attachment)) {
+    throw new Error("请不要把 Cookie、PushPlus Token 或 API Token 发给 AI。请在“轮询设置”中使用专用的加密保存入口");
+  }
   if (text.length > 4_000) throw new Error("单条消息不能超过 4000 个字符");
   if (attachment.length > 30_000) throw new Error("附件提取文本不能超过 30000 个字符");
   const [{ username, calendar, revision, rulesText }, memory, history] = await Promise.all([

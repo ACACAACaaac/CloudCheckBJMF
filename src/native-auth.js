@@ -93,44 +93,57 @@ async function createSession(env, accountId) {
   return { token, expiresAt };
 }
 
-async function rateLimitKey(request, env, action) {
+async function rateLimitKey(request, env, action, subject) {
+  if (!env.RATE_LIMIT_PEPPER) throw new Error("Rate limiting is not configured");
   const address = request.headers.get("cf-connecting-ip") ?? "unknown";
-  return sha256(`${env.RATE_LIMIT_PEPPER ?? "unconfigured"}:${action}:${address}`);
+  return sha256(`${env.RATE_LIMIT_PEPPER}:${action}:${subject ?? `ip:${address}`}`);
 }
 
-async function assertRateLimit(request, env, action, limit) {
-  const key = await rateLimitKey(request, env, action);
+async function assertRateLimitOpen(env, key) {
   const row = await env.DB.prepare(
     `SELECT attempts, window_started_at, blocked_until FROM auth_rate_limits WHERE key_hash = ?`,
   ).bind(key).first();
-  const now = Date.now();
-  if (row?.blocked_until && Date.parse(row.blocked_until) > now) {
+  if (row?.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
     throw new Error("尝试次数过多，请稍后再试");
   }
-  const windowExpired = !row || now - Date.parse(row.window_started_at) > 60 * 60 * 1000;
-  const attempts = windowExpired ? 1 : Number(row.attempts) + 1;
-  const blockedUntil = attempts > limit ? new Date(now + 15 * 60 * 1000).toISOString() : null;
+}
+
+export async function enforceRateLimit(request, env, action, limit, options = {}) {
+  const key = await rateLimitKey(request, env, action, options.subject);
+  await assertRateLimitOpen(env, key);
+  const windowSeconds = Math.max(60, Number(options.windowSeconds ?? 3_600));
+  const blockSeconds = Math.max(60, Number(options.blockSeconds ?? 900));
+  const resetBefore = new Date(Date.now() - windowSeconds * 1_000).toISOString();
   await env.DB.prepare(
     `INSERT INTO auth_rate_limits
       (key_hash, attempts, window_started_at, blocked_until, updated_at)
-     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+     VALUES (?, 1, CURRENT_TIMESTAMP, NULL, CURRENT_TIMESTAMP)
      ON CONFLICT(key_hash) DO UPDATE SET
-       attempts = excluded.attempts,
-       window_started_at = excluded.window_started_at,
-       blocked_until = excluded.blocked_until,
+       attempts = CASE WHEN auth_rate_limits.window_started_at < ? THEN 1 ELSE auth_rate_limits.attempts + 1 END,
+       window_started_at = CASE WHEN auth_rate_limits.window_started_at < ? THEN CURRENT_TIMESTAMP ELSE auth_rate_limits.window_started_at END,
+       blocked_until = NULL,
        updated_at = CURRENT_TIMESTAMP`,
-  ).bind(
-    key,
-    attempts,
-    windowExpired ? new Date(now).toISOString() : row.window_started_at,
-    blockedUntil,
-  ).run();
-  if (blockedUntil) throw new Error("尝试次数过多，请 15 分钟后再试");
+  ).bind(key, resetBefore, resetBefore).run();
+  const row = await env.DB.prepare("SELECT attempts FROM auth_rate_limits WHERE key_hash=?").bind(key).first();
+  if (Number(row?.attempts ?? 0) > limit) {
+    await env.DB.prepare("UPDATE auth_rate_limits SET blocked_until=?, updated_at=CURRENT_TIMESTAMP WHERE key_hash=?")
+      .bind(new Date(Date.now() + blockSeconds * 1_000).toISOString(), key).run();
+    throw new Error("尝试次数过多，请稍后再试");
+  }
 }
 
-async function clearRateLimit(request, env, action) {
-  const key = await rateLimitKey(request, env, action);
-  await env.DB.prepare("DELETE FROM auth_rate_limits WHERE key_hash = ?").bind(key).run();
+async function assertLoginOpen(request, env, loginName) {
+  await Promise.all([
+    rateLimitKey(request, env, "login:ip").then((key) => assertRateLimitOpen(env, key)),
+    rateLimitKey(request, env, "login:account", `account:${loginName}`).then((key) => assertRateLimitOpen(env, key)),
+  ]);
+}
+
+async function recordLoginFailure(request, env, loginName) {
+  await Promise.all([
+    enforceRateLimit(request, env, "login:ip", 20),
+    enforceRateLimit(request, env, "login:account", 10, { subject: `account:${loginName}` }),
+  ]);
 }
 
 function recoveryCode() {
@@ -139,7 +152,7 @@ function recoveryCode() {
 }
 
 export async function registerAccount(request, env, body) {
-  await assertRateLimit(request, env, "register", 5);
+  await enforceRateLimit(request, env, "register", 5);
   const loginName = normalizeLoginName(body.loginName);
   const password = validatePassword(body.password);
   const displayName = loginName;
@@ -181,23 +194,30 @@ export async function registerAccount(request, env, body) {
 }
 
 export async function loginAccount(request, env, body) {
-  await assertRateLimit(request, env, "login", 10);
   const loginName = normalizeLoginName(body.loginName);
   const password = validatePassword(body.password);
+  await assertLoginOpen(request, env, loginName);
   const row = await env.DB.prepare(
     `SELECT c.account_id, c.password_hash, c.password_salt, c.password_iterations,
             a.display_name, a.status, a.role
        FROM auth_credentials c JOIN accounts a ON a.id = c.account_id
       WHERE c.login_name = ?`,
   ).bind(loginName).first();
-  if (!row || row.status !== "active") throw new Error("用户名或密码错误");
+  if (!row || row.status !== "active") {
+    // Keep unknown-user work comparable to a real verification.
+    await derivePassword(password, new Uint8Array(16), PASSWORD_ITERATIONS);
+    await recordLoginFailure(request, env, loginName);
+    throw new Error("用户名或密码错误");
+  }
   const candidate = await derivePassword(
     password,
     base64UrlToBytes(row.password_salt),
     Number(row.password_iterations),
   );
-  if (!constantTimeEqual(candidate, row.password_hash)) throw new Error("用户名或密码错误");
-  await clearRateLimit(request, env, "login");
+  if (!constantTimeEqual(candidate, row.password_hash)) {
+    await recordLoginFailure(request, env, loginName);
+    throw new Error("用户名或密码错误");
+  }
   const session = await createSession(env, row.account_id);
   return {
     account: {
@@ -239,7 +259,7 @@ export async function logoutAccount(request, env) {
 }
 
 export async function recoverAccount(request, env, body) {
-  await assertRateLimit(request, env, "recover", 5);
+  await enforceRateLimit(request, env, "recover", 5);
   const loginName = normalizeLoginName(body.loginName);
   const password = validatePassword(body.newPassword);
   const code = String(body.recoveryCode ?? "").trim().toUpperCase();

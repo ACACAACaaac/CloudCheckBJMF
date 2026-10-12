@@ -16,6 +16,9 @@ const state = {
   calendarImport: null,
 };
 const $ = (selector) => document.querySelector(selector);
+const escapeHtml = (value) => String(value ?? "")
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 const syncChannel = typeof BroadcastChannel === "function" ? new BroadcastChannel("autocheck-cloud-sync") : null;
 let aiRefreshTimer = null;
 
@@ -375,7 +378,7 @@ async function loadAdminUsers() {
     button.className = "admin-user-card";
     button.dataset.accountId = user.id;
     button.classList.toggle("high-risk", user.ai.highRisk);
-    button.innerHTML = `<strong>${user.displayName}</strong><span>${user.status} · ${user.role}${user.ai.highRisk ? " · 高危" : ""}</span><small>AI ${user.ai.todayMessages} 条 · 信誉 ${user.ai.reputation.toFixed(1)} · ${formatBytes(user.ai.storageBytes)}</small>`;
+    button.innerHTML = `<strong>${escapeHtml(user.displayName)}</strong><span>${escapeHtml(user.status)} · ${escapeHtml(user.role)}${user.ai.highRisk ? " · 高危" : ""}</span><small>AI ${user.ai.todayMessages} 条 · 信誉 ${user.ai.reputation.toFixed(1)} · ${formatBytes(user.ai.storageBytes)}</small>`;
     return button;
   }));
 }
@@ -490,17 +493,17 @@ async function loadAdminDetail(accountId) {
   const result = await api(`/api/admin/users/${encodeURIComponent(accountId)}`);
   const user = result.user;
   $("#admin-detail").innerHTML = `
-    <h3>${user.displayName}</h3>
-    <dl><dt>账户 ID</dt><dd>${user.id}</dd><dt>账户状态</dt><dd>${user.status}${user.statusReason ? `（${user.statusReason}）` : ""}</dd><dt>签到服务</dt><dd>${user.settings?.enabled && user.settings?.attendanceEnabled ? "运行中" : "已停止"}</dd><dt>班级</dt><dd>${(user.settings?.classes ?? []).join("、") || "未识别"}</dd><dt>AI 信誉</dt><dd>${user.ai.reputation.toFixed(1)}${user.ai.highRisk ? " · 高危" : ""}</dd><dt>今日 AI</dt><dd>${user.ai.todayMessages} 条 / ${user.ai.todayNeurons.toFixed(1)} Neurons</dd><dt>累计 Token</dt><dd>${user.ai.totalInputTokens} 输入 / ${user.ai.totalOutputTokens} 输出</dd><dt>近似数据量</dt><dd>${formatBytes(user.ai.storageBytes)}</dd><dt>恢复密钥</dt><dd id="admin-recovery-code">${user.recovery.revealAvailable ? "可受控查看" : "历史账号未保存明文"}</dd></dl>
+    <h3>${escapeHtml(user.displayName)}</h3>
+    <dl><dt>账户 ID</dt><dd>${escapeHtml(user.id)}</dd><dt>账户状态</dt><dd>${escapeHtml(user.status)}${user.statusReason ? `（${escapeHtml(user.statusReason)}）` : ""}</dd><dt>签到服务</dt><dd>${user.settings?.enabled && user.settings?.attendanceEnabled ? "运行中" : "已停止"}</dd><dt>班级</dt><dd>${escapeHtml((user.settings?.classes ?? []).join("、") || "未识别")}</dd><dt>AI 信誉</dt><dd>${user.ai.reputation.toFixed(1)}${user.ai.highRisk ? " · 高危" : ""}</dd><dt>今日 AI</dt><dd>${user.ai.todayMessages} 条 / ${user.ai.todayNeurons.toFixed(1)} Neurons</dd><dt>累计 Token</dt><dd>${user.ai.totalInputTokens} 输入 / ${user.ai.totalOutputTokens} 输出</dd><dt>近似数据量</dt><dd>${formatBytes(user.ai.storageBytes)}</dd><dt>恢复密钥</dt><dd id="admin-recovery-code">${user.recovery.revealAvailable ? "可受控查看" : "历史账号未保存明文"}</dd></dl>
     <div class="admin-actions">
-      <button class="button soft" data-admin-action="recovery" data-account-id="${user.id}" ${user.recovery.revealAvailable ? "" : "disabled"}>显示恢复密钥</button>
-      <button class="button soft" data-admin-action="rotate-recovery" data-account-id="${user.id}" data-login-name="${user.loginName}">${user.recovery.revealAvailable ? "重新生成恢复密钥" : "生成可查看的恢复密钥"}</button>
-      <button class="button soft" data-admin-action="${user.status === "suspended" ? "activate" : "suspend"}" data-account-id="${user.id}">${user.status === "suspended" ? "解除封禁" : "封禁用户"}</button>
-      <button class="button danger-button" data-admin-action="delete" data-account-id="${user.id}" data-login-name="${user.loginName}">删除用户</button>
+      <button class="button soft" data-admin-action="recovery" data-account-id="${escapeHtml(user.id)}" ${user.recovery.revealAvailable ? "" : "disabled"}>显示恢复密钥</button>
+      <button class="button soft" data-admin-action="rotate-recovery" data-account-id="${escapeHtml(user.id)}" data-login-name="${escapeHtml(user.loginName)}">${user.recovery.revealAvailable ? "重新生成恢复密钥" : "生成可查看的恢复密钥"}</button>
+      <button class="button soft" data-admin-action="${user.status === "suspended" ? "activate" : "suspend"}" data-account-id="${escapeHtml(user.id)}">${user.status === "suspended" ? "解除封禁" : "封禁用户"}</button>
+      <button class="button danger-button" data-admin-action="delete" data-account-id="${escapeHtml(user.id)}" data-login-name="${escapeHtml(user.loginName)}">删除用户</button>
     </div>
-    <h4>最近 AI 评分</h4><div class="admin-score-preview">${result.aiScores.map((item) => `<p><strong>${item.score}</strong> ${item.score_reason} · ${formatShanghai(item.created_at)}</p>`).join("") || "暂无评分"}</div>
+    <h4>最近 AI 评分</h4><div class="admin-score-preview">${result.aiScores.map((item) => `<p><strong>${Number(item.score)}</strong> ${escapeHtml(item.score_reason)} · ${escapeHtml(formatShanghai(item.created_at))}</p>`).join("") || "暂无评分"}</div>
     <h4>AI 对话诊断</h4><div class="admin-log-preview" id="admin-ai-diagnostics">${user.ai.diagnosticOptIn ? "正在加载用户授权的对话……" : "该用户未授权查看对话内容。"}</div>
-    <h4>最近日志</h4><div class="admin-log-preview">${result.logs.map((log) => `<p><strong>${log.outcome}</strong> ${log.class_id}${log.task_id ? ` / ${log.task_id}` : ""} · ${formatShanghai(log.attempted_at)}</p>`).join("") || "暂无日志"}</div>`;
+    <h4>最近日志</h4><div class="admin-log-preview">${result.logs.map((log) => `<p><strong>${escapeHtml(log.outcome)}</strong> ${escapeHtml(log.class_id)}${log.task_id ? ` / ${escapeHtml(log.task_id)}` : ""} · ${escapeHtml(formatShanghai(log.attempted_at))}</p>`).join("") || "暂无日志"}</div>`;
   if (user.ai.diagnosticOptIn) {
     const target = $("#admin-ai-diagnostics");
     target.replaceChildren(...result.aiMessages.map((message) => {
@@ -790,6 +793,7 @@ $("#admin-detail").addEventListener("click", async (event) => {
       return;
     }
     const status = action === "suspend" ? "suspended" : "active";
+    if (!confirm(`${status === "suspended" ? "封禁" : "解除封禁"}该用户？此操作会立即使其现有登录会话失效。`)) return;
     await api(`/api/admin/users/${encodeURIComponent(accountId)}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -1094,7 +1098,7 @@ async function applyCalendarImport() {
 }
 
 async function pollLogin(attemptId) {
-  const result = await api(`/api/login/poll?id=${encodeURIComponent(attemptId)}`);
+  const result = await api(`/api/login/poll?id=${encodeURIComponent(attemptId)}`, { method: "POST" });
   if (result.status === "complete") {
     clearTimeout(state.loginTimer);
     state.loginAttempt = null;

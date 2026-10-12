@@ -4,6 +4,9 @@ import { refreshDetectedClasses } from "./cookie-login.js";
 
 const SHANGHAI_OFFSET = "+08:00";
 const DAY_MS = 86_400_000;
+const MAX_WINDOWS_PER_TARGET = 256;
+const MAX_BUCKETS_PER_TARGET = 4_000;
+const MAX_OCCURRENCES_PER_GROUP = 32;
 
 function shanghaiDateParts(date) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -37,24 +40,25 @@ function validTime(value) {
   return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
 }
 
-async function stableOffsetSeconds(key, intervalMinutes) {
+function stableOffsetSeconds(key, intervalMinutes) {
   const totalSeconds = Math.max(60, intervalMinutes * 60);
   const minimum = totalSeconds > 62 ? 31 : 1;
   const maximum = totalSeconds > 62 ? totalSeconds - 31 : Math.max(1, totalSeconds - 1);
-  const digest = new Uint8Array(
-    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key)),
-  );
-  const value = new DataView(digest.buffer).getUint32(0, false);
+  let value = 0x811c9dc5;
+  for (let index = 0; index < key.length; index += 1) {
+    value = Math.imul(value ^ key.charCodeAt(index), 0x01000193);
+  }
+  value >>>= 0;
   return minimum + (value % Math.max(1, maximum - minimum + 1));
 }
 
 function calendarWindows(calendar, username, date, defaultWindowMinutes) {
   const calendarUser = (calendar.users ?? []).find((user) => user.username === username);
   if (!calendarUser) return [];
-  const windowMinutes = Math.max(1, Number(calendarUser.window_minutes ?? defaultWindowMinutes ?? 20));
+  const windowMinutes = Math.min(180, Math.max(1, Number(calendarUser.window_minutes ?? defaultWindowMinutes ?? 20)));
   const windows = [];
 
-  for (const task of calendarUser.single_tasks ?? []) {
+  for (const task of (calendarUser.single_tasks ?? []).slice(0, MAX_WINDOWS_PER_TARGET)) {
     if (task.enabled === false || task.date !== date || !validTime(task.start_time)) continue;
     const center = localDateTime(date, task.start_time);
     windows.push({
@@ -62,12 +66,13 @@ function calendarWindows(calendar, username, date, defaultWindowMinutes) {
       end: new Date(center.getTime() + windowMinutes * 60_000),
       source: `single:${task.id}`,
     });
+    if (windows.length >= MAX_WINDOWS_PER_TARGET) return windows;
   }
 
   const weekday = shanghaiDateParts(localDateTime(date, "12:00")).weekday;
-  for (const group of calendarUser.repeat_tasks ?? []) {
+  for (const group of (calendarUser.repeat_tasks ?? []).slice(0, MAX_WINDOWS_PER_TARGET)) {
     if (group.enabled === false || date < group.start_date || date > group.end_date) continue;
-    for (const [index, occurrence] of (group.occurrences ?? []).entries()) {
+    for (const [index, occurrence] of (group.occurrences ?? []).slice(0, MAX_OCCURRENCES_PER_GROUP).entries()) {
       if (!validTime(occurrence.start_time)) continue;
       if (group.period === "weekly" && Number(occurrence.weekday) !== weekday) continue;
       const instanceKey = `${date}#${index}`;
@@ -78,6 +83,7 @@ function calendarWindows(calendar, username, date, defaultWindowMinutes) {
         end: new Date(center.getTime() + windowMinutes * 60_000),
         source: `repeat:${group.id}:${index}`,
       });
+      if (windows.length >= MAX_WINDOWS_PER_TARGET) return windows;
     }
   }
   return windows;
@@ -97,20 +103,20 @@ function ordinaryWindows(settings, date) {
 export async function nextReadTarget(accountId, settings, calendar, after = new Date()) {
   // "停止签到" means no further cloud reads or submissions.
   if (settings.enabled !== true || settings.attendanceEnabled !== true) return null;
-  const intervalMinutes = Math.max(
-    1,
-    Number(settings.polling?.everyMinutes ?? settings.schedule?.every_minutes ?? 5),
-  );
+  const intervalMinutes = Math.min(120, Math.max(
+    1, Number(settings.polling?.everyMinutes ?? settings.schedule?.every_minutes ?? 5),
+  ));
   const today = shanghaiDateParts(after).date;
   const candidates = [];
 
+  let bucketCount = 0;
   for (let dayOffset = -1; dayOffset <= 2; dayOffset += 1) {
     const date = addLocalDays(today, dayOffset);
     const windows = [
       ...ordinaryWindows(settings, date),
       ...calendarWindows(calendar, settings.username ?? "", date, settings.calendarWindowMinutes),
     ];
-    for (const window of windows) {
+    for (const window of windows.slice(0, MAX_WINDOWS_PER_TARGET)) {
       for (
         let bucket = new Date(window.start);
         bucket < window.end;
@@ -118,7 +124,8 @@ export async function nextReadTarget(accountId, settings, calendar, after = new 
       ) {
         const bucketEnd = new Date(bucket.getTime() + intervalMinutes * 60_000);
         if (bucketEnd > window.end) break;
-        const offset = await stableOffsetSeconds(
+        if (++bucketCount > MAX_BUCKETS_PER_TARGET) return candidates.sort((left, right) => left - right)[0] ?? null;
+        const offset = stableOffsetSeconds(
           `${accountId}|${date}|${window.source}|${bucket.toISOString()}`,
           intervalMinutes,
         );

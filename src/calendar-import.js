@@ -1,5 +1,3 @@
-import * as XLSX from "xlsx";
-
 const MAX_IMPORT_CHARS = 180_000;
 const DAY_NAMES = new Map([
   ["一", 1], ["二", 2], ["三", 3], ["四", 4], ["五", 5], ["六", 6], ["日", 7], ["天", 7],
@@ -177,23 +175,13 @@ function parseIcs(text, term) {
   return { rows, warnings: rows.length ? [] : ["ICS 中没有找到可导入的重复课程事件"] };
 }
 
-function parseXlsx(binary, term) {
-  try {
-    const workbook = XLSX.read(binary, { type: "base64", cellDates: false });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    if (!sheet) return { rows: [], warnings: ["Excel 中没有可读取的工作表"] };
-    return parseCsv(XLSX.utils.sheet_to_csv(sheet), term);
-  } catch {
-    return { rows: [], warnings: ["Excel 文件无法读取，请确认文件未损坏或改用 CSV"] };
-  }
-}
-
 export function parseCalendarImport(value = {}) {
   const source = ["text", "csv", "html", "ics", "xlsx"].includes(value.source) ? value.source : "text";
   const text = String(value.text ?? "");
   const binary = String(value.binary ?? "");
   if (!text.trim() && !binary) throw new Error("请先粘贴内容或选择文件");
   if (text.length > MAX_IMPORT_CHARS) throw new Error("导入内容过大，请控制在 180000 个字符以内");
+  if (source === "xlsx") throw new Error("Excel 导入正在进行安全升级，请先将课表导出为 CSV、ICS 或复制为文字后导入");
   const term = defaultTerm(value.term);
   const parsed = source === "csv" ? parseCsv(text, term)
     : source === "html" ? (() => {
@@ -201,7 +189,6 @@ export function parseCalendarImport(value = {}) {
       return rows.length ? { rows, warnings: [] } : parseLooseText(htmlToText(text), term);
     })()
       : source === "ics" ? parseIcs(text, term)
-        : source === "xlsx" ? parseXlsx(binary, term)
         : parseLooseText(text, term);
   return {
     source,

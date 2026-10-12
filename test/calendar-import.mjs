@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import * as XLSX from "xlsx";
 import { appendImportedCalendar, parseCalendarImport } from "../src/calendar-import.js";
 
 const parsed = parseCalendarImport({
@@ -18,16 +17,10 @@ assert.equal(csv.items.length, 1);
 assert.deepEqual(csv.items[0].weekdays, [2, 4]);
 assert.equal(csv.items[0].locationHint, "E13");
 
-const book = XLSX.utils.book_new();
-XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
-  ["课程名", "星期", "开始时间", "地点"], ["大学化学", "周一", "09:00", "E13"],
-]), "课表");
-const excel = parseCalendarImport({
+assert.throws(() => parseCalendarImport({
   source: "xlsx", term: { startDate: "2026-09-14", endDate: "2027-01-15" },
-  binary: XLSX.write(book, { type: "base64", bookType: "xlsx" }),
-});
-assert.equal(excel.items.length, 1);
-assert.equal(excel.items[0].title, "大学化学");
+  binary: "UEsDBBQAAAAIAAAAIQ==",
+}), /安全升级/);
 
 const html = parseCalendarImport({
   source: "html", term: { startDate: "2026-09-14", endDate: "2027-01-15" },

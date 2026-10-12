@@ -3,6 +3,7 @@ import { readDocument, writeDocument } from "./documents.js";
 import { appendImportedCalendar, parseCalendarImport } from "./calendar-import.js";
 import {
   accountFromSession,
+  enforceRateLimit,
   loginAccount,
   logoutAccount,
   recoverAccount,
@@ -30,6 +31,7 @@ const JSON_HEADERS = {
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(self), payment=()",
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
+  "Strict-Transport-Security": "max-age=31536000",
 };
 
 const SECURITY_HEADERS = {
@@ -37,6 +39,7 @@ const SECURITY_HEADERS = {
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(self), payment=()",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-Content-Type-Options": "nosniff",
+  "Strict-Transport-Security": "max-age=31536000",
 };
 
 const MAP_TILE_PATTERN = /^\/api\/map\/tiles\/(\d{1,2})\/(\d+)\/(\d+)\.png$/;
@@ -122,9 +125,21 @@ async function handleMapTile(request, url, context) {
 }
 
 async function requestJson(request) {
+  const maxBytes = arguments.length > 1 ? arguments[1] : 1_000_000;
   const contentType = request.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) throw new Error("Expected JSON request body");
-  return request.json();
+  const declaredLength = Number(request.headers.get("content-length") ?? 0);
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) throw new Error("请求内容过大");
+  const text = await request.text();
+  if (new TextEncoder().encode(text).byteLength > maxBytes) throw new Error("请求内容过大");
+  try { return JSON.parse(text); } catch { throw new Error("请求 JSON 格式无效"); }
+}
+
+async function enforceAccountRate(request, env, accountId, action, limit, windowSeconds = 900) {
+  await Promise.all([
+    enforceRateLimit(request, env, `api:${action}:account`, limit, { subject: `account:${accountId}`, windowSeconds }),
+    enforceRateLimit(request, env, `api:${action}:ip`, Math.max(limit * 3, 12), { windowSeconds }),
+  ]);
 }
 
 async function authenticatedAccount(request, env) {
@@ -199,6 +214,7 @@ async function handleCalendarImport(request, env, action) {
   if (auth.response) return auth.response;
   if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
   try {
+    await enforceAccountRate(request, env, auth.account.id, `calendar-import:${action}`, 12, 3_600);
     const body = await requestJson(request);
     if (action === "preview") {
       const draft = parseCalendarImport({ source: body.source, text: body.text, binary: body.binary, term: body.term });
@@ -234,6 +250,7 @@ async function handleCredentialRequest(request, env) {
   if (request.method !== "PUT") return json({ ok: false, error: "Method not allowed" }, 405);
 
   try {
+    await enforceAccountRate(request, env, auth.account.id, "credentials", 20, 3_600);
     const body = await requestJson(request);
     if (body.kind === "bjmf_cookie") {
       const cookie = normalizeCookie(String(body.value ?? ""));
@@ -259,6 +276,7 @@ async function handleLoginStart(request, env) {
   if (auth.response) return auth.response;
   if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
   try {
+    await enforceAccountRate(request, env, auth.account.id, "login-start", 6);
     return json({ ok: true, ...(await startCookieLogin(env, auth.account.id)) }, 201);
   } catch (error) {
     console.error("cookie login start failed", error);
@@ -273,7 +291,8 @@ async function handleLoginStart(request, env) {
 async function handleLoginPoll(request, env, url) {
   const auth = await authenticatedAccount(request, env);
   if (auth.response) return auth.response;
-  if (request.method !== "GET") return json({ ok: false, error: "Method not allowed" }, 405);
+  if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
+  await enforceAccountRate(request, env, auth.account.id, "login-poll", 60);
   const attemptId = url.searchParams.get("id") ?? "";
   if (!/^[0-9a-f-]{36}$/i.test(attemptId)) return json({ ok: false, error: "Invalid login attempt" }, 400);
   return json({ ok: true, ...(await pollCookieLogin(env, auth.account.id, attemptId)) });
@@ -284,6 +303,7 @@ async function handleReadOnlyCheck(request, env) {
   if (auth.response) return auth.response;
   if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
   try {
+    await enforceAccountRate(request, env, auth.account.id, "read-only", 30);
     const body = await requestJson(request);
     return json({ ok: true, ...(await inspectClassTasks(env, auth.account.id, String(body.classId ?? ""))) });
   } catch (error) {
@@ -296,6 +316,7 @@ async function handleAttendanceRun(request, env) {
   if (auth.response) return auth.response;
   if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
   try {
+    await enforceAccountRate(request, env, auth.account.id, "attendance-run", 6);
     const body = await requestJson(request);
     if (body.confirm !== true) return json({ ok: false, error: "Explicit confirmation is required" }, 400);
     try { await refreshDetectedClasses(env, auth.account.id); }
@@ -311,6 +332,7 @@ async function handlePushplusTest(request, env) {
   if (auth.response) return auth.response;
   if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
   try {
+    await enforceAccountRate(request, env, auth.account.id, "pushplus-test", 5);
     return json({ ok: true, ...(await testPushplus(env, auth.account.id)) });
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : "PushPlus 测试失败" }, 400);
@@ -385,6 +407,7 @@ async function handleFeedback(request, env) {
   if (request.method === "GET") return json({ ok: true, feedback: await userFeedback(env, auth.account.id) });
   if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
   try {
+    await enforceAccountRate(request, env, auth.account.id, "feedback", 10, 86_400);
     return json({ ok: true, ...(await submitFeedback(env, auth.account.id, await requestJson(request))) }, 201);
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : "无法提交反馈" }, 400);
@@ -396,10 +419,12 @@ async function handleAi(request, env, url) {
   if (auth.response) return auth.response;
   try {
     if (url.pathname === "/api/ai/vision/agree" && request.method === "POST") {
+      await enforceAccountRate(request, env, auth.account.id, "vision-agree", 3, 3_600);
       return json({ ok: true, ...(await acceptVisionLicense(env, auth.account)) });
     }
     if (url.pathname === "/api/ai/probe" && request.method === "POST") {
       if (auth.account.role !== "admin") return json({ ok: false, error: "Admin access is required" }, 403);
+      await enforceAccountRate(request, env, auth.account.id, "ai-probe", 5, 3_600);
       const result = await env.AI.run("@cf/meta/llama-3.1-8b-instruct-fast", {
         messages: [{ role: "user", content: "这是 API 连通性测试。请只回复 OK。" }],
         max_tokens: 8,
@@ -427,7 +452,7 @@ async function handleAi(request, env, url) {
       return json({ ok: true, ...(await setAiDiagnosticOptIn(env, auth.account.id, body.enabled === true)) });
     }
     if (url.pathname === "/api/ai/chat" && request.method === "POST") {
-      const body = await requestJson(request);
+      const body = await requestJson(request, 25 * 1024 * 1024);
       return json({ ok: true, ...(await sendAiMessage(env, auth.account, body.message, body.attachmentText, body.images)) });
     }
     if (url.pathname === "/api/ai/chat/stop" && request.method === "POST") {
@@ -452,6 +477,11 @@ export default {
   async fetch(request, env, context) {
     const url = new URL(request.url);
 
+    if (url.protocol === "http:") {
+      url.protocol = "https:";
+      return Response.redirect(url.toString(), 301);
+    }
+
     if (url.pathname.startsWith("/api/") && !isSameOriginMutation(request, url)) {
       return json({ ok: false, error: "Cross-site request rejected" }, 403);
     }
@@ -471,45 +501,7 @@ export default {
       }
       return json({
         ok: true,
-        stage: 5,
-        environment: "preview",
-        timestamp: new Date().toISOString(),
-        colo: request.cf?.colo ?? null,
-        database,
-      });
-    }
-
-    if (url.pathname === "/api/progress") {
-      return json({
-        stage: 5,
-        release: "stage-5-attendance-admin",
-        milestones: [
-          { id: "public-shell", label: "公开网站", status: "complete" },
-          { id: "database", label: "D1 数据基础", status: "complete" },
-          { id: "tenant-isolation", label: "多租户隔离", status: "complete" },
-          { id: "registration", label: "原生账户登录", status: "in_progress" },
-          { id: "cookie-login", label: "扫码 Cookie", status: "ready_for_test" },
-          { id: "executor", label: "签到执行器", status: "ready_for_test" },
-          { id: "admin", label: "脱敏 Admin", status: "complete" },
-          { id: "ai", label: "AI 助手", status: "design_ready" },
-        ],
-      });
-    }
-
-    if (url.pathname === "/api/capabilities") {
-      return json({
-        publicWebsite: true,
-        registration: true,
-        cookieLogin: true,
-        scheduler: true,
-        readOnlyChecks: true,
-        attendanceRequests: true,
-        aiChat: true,
-        databaseFoundation: true,
-        tenantIsolation: "native_session",
-        authentication: "native-password-session",
-        accessRequired: false,
-        note: "Attendance writes require each account to explicitly enable its independent safety switch.",
+        status: database.ok ? "ok" : "degraded",
       });
     }
 
@@ -530,6 +522,7 @@ export default {
     if (url.pathname === "/api/account/me") {
       const auth = await authenticatedAccount(request, env);
       if (auth.response) return auth.response;
+      if (request.method !== "GET") return json({ ok: false, error: "Method not allowed" }, 405);
       return json({ ok: true, authenticated: true, registered: true, account: auth.account });
     }
 
